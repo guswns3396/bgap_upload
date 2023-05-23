@@ -421,36 +421,36 @@ def bgap_upload(base_path):
     log_dir = redcap_path / 'logs'
 
     report_handlers = {
-            # 'CPT-3':       (re.compile(r'.*/CPT3_Export_(?P<id>\d+)_'
+            # 'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
             #                            r'(?P<tp>\d).xls'),
             #                 make_cpt3_uploader, 'bgap_cpt_template.xls'),
-            # 'DKEFS':       (re.compile(r'.*/DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
+            # 'DKEFS':       (re.compile(r'.*[/\\]DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
             #                            r'(?P<tp>\d).txt'),
             #                 make_dkefs_uploader, 'bgap_dkefs_template.csv'),
-            # 'NIH Toolbox': (re.compile(r'.*/NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
-            #                            r'(?:_Remote)?.csv'),
-            #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
-            # 'WISC-V':      (re.compile(r'.*/WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d).csv'),
-            #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
-            # 'WISC-V-Part1':      (re.compile(r'.*/WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)_Part1.csv'),
-            #                 make_wisc_uploader1, 'bgap_wiscv_template.csv'),
-            # 'WISC-V-Part2':      (re.compile(r'.*/WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)_Part2.csv'),
-            #                 make_wisc_uploader2, 'bgap_wiscv_template.csv'),
-            # 'KTEA':        (re.compile(r'.*/KTEA\(BA-3\)_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
-            #                 make_ktea_uploader, 'bgap_ktea_template.csv'),
-            # 'Vineland':    (re.compile(r'.*/Vineland3_Report_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)\.docx?'),
-            #                 make_qglobal_uploader,
-            #                 'bgap_vineland_template.csv'),
-            'BASC3-PRS':   (re.compile(r'.*/BASC3PRS_Report_(?P<id>\d+)_'
+            'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
+                                       r'(?:_Remote)?.csv'),
+                            make_nihtb_uploader, 'bgap_nihtb_template.csv'),
+            'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d).csv'),
+                            make_wisc_uploader0, 'bgap_wiscv_template.csv'),
+            'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d)_Part1.csv'),
+                            make_wisc_uploader1, 'bgap_wiscv_template.csv'),
+            'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d)_Part2.csv'),
+                            make_wisc_uploader2, 'bgap_wiscv_template.csv'),
+            'KTEA':        (re.compile(r'.*[/\\]KTEA\(BA-3\)_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
+                            make_ktea_uploader, 'bgap_ktea_template.csv'),
+            'Vineland':    (re.compile(r'.*[/\\]Vineland3_Report_(?P<id>\d+)_'
+                                       r'(?P<tp>\d)\.docx?'),
+                            make_qglobal_uploader,
+                            'bgap_vineland_template.csv'),
+            'BASC3-PRS':   (re.compile(r'.*[/\\]BASC3PRS_Report_(?P<id>\d+)_'
                                        r'(?P<tp>\d)\.docx?'),
                             make_qglobal_uploader,
                             'bgap_basc3prs_template.csv'),
-            'BASC3-SRP':   (re.compile(r'.*/BASC3SRP_Report_(?P<id>\d+)_'
+            'BASC3-SRP':   (re.compile(r'.*[/\\]BASC3SRP_Report_(?P<id>\d+)_'
                                        r'(?P<tp>\d)\.docx?'),
                             make_qglobal_uploader,
                             'bgap_basc3srp_template.csv'),
@@ -490,7 +490,7 @@ def bgap_upload(base_path):
 
 def main():
     # bgap_upload(Path('/Volumes/Projects/KSTRT/Data'))
-    bgap_upload(Path('/Users/marzelli/Desktop/redcap-uploaders/KSTRT/Data'))
+    bgap_upload(Path(r"C:\Users\yanghyun\Desktop\Stanford\CIBSR\FS REDCap Upload\KSTRT\Data"))
 
 
 if __name__ == '__main__':
