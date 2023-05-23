@@ -92,7 +92,7 @@ def make_wisc_uploader0(matches, template_path, api_url, token, log_path):
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                f'.*/{subj_id}_{tp}' +
+                fr'.*[/\\]{subj_id}_{tp}' +
                 r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
                 r'(?:NEW )?(?:Remote *)?WISC(?:-V)?' +
                 r'(?: *\(Core 10\))?(?: New)?_information.txt')
@@ -157,7 +157,7 @@ def make_wisc_uploader1(matches, template_path, api_url, token, log_path):
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                f'.*/{subj_id}_{tp}' +
+                fr'.*[/\\]{subj_id}_{tp}' +
                 r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
                 r'(?:NEW )?(?:Remote *)?WISC(?:-V)?' +
                 r'(?: *\(Core 10\))?(?: Part ?1)(?: New)?_information.txt')
@@ -220,7 +220,7 @@ def make_wisc_uploader2(matches, template_path, api_url, token, log_path):
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                f'.*/{subj_id}_{tp}' +
+                fr'.*[/\\]{subj_id}_{tp}' +
                 r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
                 r'(?:NEW )?(?:Remote *)?WISC(?:-V)?' +
                 r'(?: *\(Core 10\))?(?: Part ?2)(?: New)?_information.txt')
@@ -284,7 +284,7 @@ def make_ktea_uploader(matches, template_path, api_url, token, log_path):
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                f'.*/{subj_id}_{tp}' +
+                fr'.*[/\\]{subj_id}_{tp}' +
                 r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})(?:Remote )?'
                 r'KTEA(?: \(BA-3\))?(?: Part\d)?_information.txt')
         info_matches = [m for m in [info_file_re.fullmatch(str(f.resolve()))
