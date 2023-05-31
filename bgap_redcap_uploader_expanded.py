@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import time
 import ipdb
+import sys
 
 from pushcap import (RedcapUploader, RedcapUploaderError,
                      NIHToolboxUploader, NIHTbReport,
@@ -409,14 +410,17 @@ def make_cpt3_uploader(matches, template_path, api_url, token, log_path):
     return cpt_upl, errors
 
 
-def bgap_upload(base_path):
+def bgap_upload(base_path, test=False):
     print('\n====================')
     print('BGAP REDCap Uploader')
     print('====================')
 
     data_path = base_path / 'ParticipantFiles'
     redcap_path = base_path / 'REDCapUploads'
-    token = (redcap_path / 'token.txt').read_text().rstrip('\r\n ')
+    if test:
+        token = (redcap_path / 'token_test.txt').read_text().rstrip('\r\n ')
+    else:
+        token = (redcap_path / 'token_real.txt').read_text().rstrip('\r\n ')
     api_url = 'https://redcap.stanford.edu/api/'
     log_dir = redcap_path / 'logs'
 
@@ -427,18 +431,18 @@ def bgap_upload(base_path):
             # 'DKEFS':       (re.compile(r'.*[/\\]DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
             #                            r'(?P<tp>\d).txt'),
             #                 make_dkefs_uploader, 'bgap_dkefs_template.csv'),
-            # 'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
-            #                            r'(?:_Remote)?.csv'),
-            #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
-            'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d).csv'),
-                            make_wisc_uploader0, 'bgap_wiscv_template.csv'),
-            'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d)_Part1.csv'),
-                            make_wisc_uploader1, 'bgap_wiscv_template.csv'),
-            'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d)_Part2.csv'),
-                            make_wisc_uploader2, 'bgap_wiscv_template.csv'),
+            'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
+                                       r'(?:_Remote)?.csv'),
+                            make_nihtb_uploader, 'bgap_nihtb_template.csv'),
+            # 'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d).csv'),
+            #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
+            # 'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d)_Part1.csv'),
+            #                 make_wisc_uploader1, 'bgap_wiscv_template.csv'),
+            # 'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d)_Part2.csv'),
+            #                 make_wisc_uploader2, 'bgap_wiscv_template.csv'),
             # 'KTEA':        (re.compile(r'.*[/\\]KTEA\(BA-3\)_Export_(?P<id>\d+)_'
             #                            r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
             #                 make_ktea_uploader, 'bgap_ktea_template.csv'),
@@ -488,14 +492,25 @@ def bgap_upload(base_path):
             print(err)
 
 
-def main():
-    # bgap_upload(Path('/Volumes/Projects/KSTRT/Data'))
-    # bgap_upload(Path(r"Z:\KSTRT\Data").resolve())
-    bgap_upload(Path(r"C:\Users\yanghyun\Desktop\Stanford\CIBSR\FS REDCap Upload\KSTRT\Data"))
+def main(arg):
+    # upload from local to test DB
+    if arg == '--test':
+        bgap_upload(base_path=Path(r"C:\Users\yanghyun\Desktop\Stanford\CIBSR\FS REDCap Upload\KSTRT\Data"), test=True)
+    # upload from local to real DB
+    elif arg == '--real':
+        bgap_upload(base_path=Path(r"C:\Users\yanghyun\Desktop\Stanford\CIBSR\FS REDCap Upload\KSTRT\Data"), test=False)
+    # upload from server to real DB
+    elif arg == '--server':
+        # bgap_upload(Path('/Volumes/Projects/KSTRT/Data')) # MacOS
+        bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=False) # WindowsOS
+    else:
+        raise ValueError("Flag must be '--test', '--real', or '--server'")
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) != 2:
+        raise ValueError('Requires 2 arguments (Python script, DB type)')
+    main(sys.argv[-1])
 
 class BgapCrawlerError(Exception):
     pass
