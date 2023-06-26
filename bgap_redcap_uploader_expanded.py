@@ -11,7 +11,7 @@ from pushcap import (RedcapUploader, RedcapUploaderError,
                      QInteractiveUploader, QInteractiveUploaderError,
                      QInteractiveReport,
                      DkefsUploader, DkefsReport,
-                     QGlobalUploader, QGlobalReport,
+                     QGlobalUploader, QGlobalReport, QGlobalUploaderError,
                      CptUploader, CptReport)
 
 
@@ -425,15 +425,15 @@ def bgap_upload(base_path, test=False):
     log_dir = redcap_path / 'logs'
 
     report_handlers = {
-            # 'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d).xls'),
-            #                 make_cpt3_uploader, 'bgap_cpt_template.xls'),
+            'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d).xls'),
+                            make_cpt3_uploader, 'bgap_cpt_template.xls'),
             # 'DKEFS':       (re.compile(r'.*[/\\]DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
             #                            r'(?P<tp>\d).txt'),
             #                 make_dkefs_uploader, 'bgap_dkefs_template.csv'),
-            'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
-                                       r'(?:_Remote)?.csv'),
-                            make_nihtb_uploader, 'bgap_nihtb_template.csv'),
+            # 'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
+            #                            r'(?:_Remote)?.csv'),
+            #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
             # 'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
             #                            r'(?P<tp>\d).csv'),
             #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
