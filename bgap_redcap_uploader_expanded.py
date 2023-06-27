@@ -10,9 +10,9 @@ from pushcap import (RedcapUploader, RedcapUploaderError,
                      NIHToolboxUploader, NIHTbReport,
                      QInteractiveUploader, QInteractiveUploaderError,
                      QInteractiveReport,
-                     DkefsUploader, DkefsReport,
+                     DkefsUploader, DkefsReport, DkefsUploaderError,
                      QGlobalUploader, QGlobalReport, QGlobalUploaderError,
-                     CptUploader, CptReport)
+                     CptUploader, CptReport, CptUploaderError)
 
 
 def bgap_crawl(data_path, report_handlers):
