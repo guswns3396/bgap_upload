@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: pushcap
+Version: 1.0
+Summary: A REDCap uploader for various assessments and forms.
+Author: Aaron Piccirilli
+Author-email: picc@stanford.edu
