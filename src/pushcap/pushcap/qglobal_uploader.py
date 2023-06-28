@@ -7,15 +7,10 @@ from zipfile import BadZipFile
 
 from . import RedcapUploader, RedcapUploaderError
 import docx
-<<<<<<< HEAD
-
-__SOFFICE__ = '/Applications/LibreOffice.app/Contents/MacOS/soffice'
-=======
 import platform
 
 __SOFFICE__ = '/Applications/LibreOffice.app/Contents/MacOS/soffice'
 __SOFFICEWIN__ = r'C:\Program Files\LibreOffice\program\soffice'
->>>>>>> tmp
 
 
 class QGlobalUploader(RedcapUploader):
