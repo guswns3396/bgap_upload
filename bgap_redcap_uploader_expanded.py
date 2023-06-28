@@ -12,7 +12,8 @@ from pushcap import (RedcapUploader, RedcapUploaderError,
                      QInteractiveReport,
                      DkefsUploader, DkefsReport, DkefsUploaderError,
                      QGlobalUploader, QGlobalReport, QGlobalUploaderError,
-                     CptUploader, CptReport, CptUploaderError)
+                     CptUploader, CptReport, CptUploaderError,
+                     KsadsUploader, KsadsUploaderError)
 
 
 def bgap_crawl(data_path, report_handlers):
@@ -410,6 +411,27 @@ def make_cpt3_uploader(matches, template_path, api_url, token, log_path):
     return cpt_upl, errors
 
 
+def make_ksads_uploader(matches, template_path, api_url, token, log_path):
+    reports = {}
+    errors = []
+
+    for (subj_id, event), report_matches in matches.items():
+        if len(report_matches) > 1:
+            errors.append(CptUploaderError(
+                'More than one scoring file.', subj_id=subj_id, event=event,
+                form_id=f'ksads'))
+        report_path = Path(report_matches[0].group(0))
+        reports[(subj_id, event)] = CptReport(report_path)
+
+    if not reports:
+        ksads_upl = None
+    else:
+        ksads_upl = KsadsUploader(report_path, template_path, parse_id_fn, api_url, token, log_path,
+                              date_fields=('ksads_date',))
+
+    return ksads_upl, errors
+
+
 def bgap_upload(base_path, test=False):
     print('\n====================')
     print('BGAP REDCap Uploader')
@@ -425,24 +447,24 @@ def bgap_upload(base_path, test=False):
     log_dir = redcap_path / 'logs'
 
     report_handlers = {
-            'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d).xls'),
-                            make_cpt3_uploader, 'bgap_cpt_template.xls'),
+            # 'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d).xls'),
+            #                 make_cpt3_uploader, 'bgap_cpt_template.xls'),
             # 'DKEFS':       (re.compile(r'.*[/\\]DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
             #                            r'(?P<tp>\d).txt'),
             #                 make_dkefs_uploader, 'bgap_dkefs_template.csv'),
             # 'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
             #                            r'(?:_Remote)?.csv'),
             #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
-            # 'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d).csv'),
-            #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
-            # 'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)_Part1.csv'),
-            #                 make_wisc_uploader1, 'bgap_wiscv_template.csv'),
-            # 'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)_Part2.csv'),
-            #                 make_wisc_uploader2, 'bgap_wiscv_template.csv'),
+            'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d).csv'),
+                            make_wisc_uploader0, 'bgap_wiscv_template.csv'),
+            'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d)_Part1.csv'),
+                            make_wisc_uploader1, 'bgap_wiscv_template.csv'),
+            'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+                                       r'(?P<tp>\d)_Part2.csv'),
+                            make_wisc_uploader2, 'bgap_wiscv_template.csv'),
             # 'KTEA':        (re.compile(r'.*[/\\]KTEA\(BA-3\)_Export_(?P<id>\d+)_'
             #                            r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
             #                 make_ktea_uploader, 'bgap_ktea_template.csv'),
@@ -457,6 +479,10 @@ def bgap_upload(base_path, test=False):
             # 'BASC3-SRP':   (re.compile(r'.*[/\\]BASC3SRP_Report_(?P<id>\d+)_'
             #                            r'(?P<tp>\d)\.docx?'),
             #                 make_qglobal_uploader,
+            #                 'bgap_basc3srp_template.csv'),
+            # 'Y-KSADS': (re.compile(r'.*[/\\]Y_KSADS_Report_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d)\.pdf'),
+            #                 make_ksads_uploader(),
             #                 'bgap_basc3srp_template.csv'),
     }
 
