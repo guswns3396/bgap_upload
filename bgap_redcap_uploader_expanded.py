@@ -169,7 +169,7 @@ def make_wisc_uploader1(matches, template_path, api_url, token, log_path):
         # More/less than 1 WISC info file? Error
         if len(info_matches) != 1:
             errors.append(QInteractiveUploaderError(
-                    f'Expecting 1 WISC info file, got {len(info_matches)}.',
+                    f'Expecting 1 WISC info file (Part 1), got {len(info_matches)}.',
                     subj_id=subj_id, event=event, form_id='wisc',
                     form_path=scores_path))
             continue
@@ -232,7 +232,7 @@ def make_wisc_uploader2(matches, template_path, api_url, token, log_path):
         # More/less than 1 WISC info file? Error
         if len(info_matches) != 1:
             errors.append(QInteractiveUploaderError(
-                    f'Expecting 1 WISC info file, got {len(info_matches)}.',
+                    f'Expecting 1 WISC info file (Part 2), got {len(info_matches)}.',
                     subj_id=subj_id, event=event, form_id='wisc',
                     form_path=scores_path))
             continue
@@ -456,15 +456,15 @@ def bgap_upload(base_path, test=False):
             # 'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
             #                            r'(?:_Remote)?.csv'),
             #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
-            'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d).csv'),
-                            make_wisc_uploader0, 'bgap_wiscv_template.csv'),
-            'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d)_Part1.csv'),
-                            make_wisc_uploader1, 'bgap_wiscv_template.csv'),
-            'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-                                       r'(?P<tp>\d)_Part2.csv'),
-                            make_wisc_uploader2, 'bgap_wiscv_template.csv'),
+            # 'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d).csv'),
+            #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
+            # 'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d)_Part1.csv'),
+            #                 make_wisc_uploader1, 'bgap_wiscv_template.csv'),
+            # 'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+            #                            r'(?P<tp>\d)_Part2.csv'),
+            #                 make_wisc_uploader2, 'bgap_wiscv_template.csv'),
             # 'KTEA':        (re.compile(r'.*[/\\]KTEA\(BA-3\)_Export_(?P<id>\d+)_'
             #                            r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
             #                 make_ktea_uploader, 'bgap_ktea_template.csv'),
