@@ -486,6 +486,16 @@ def bgap_upload(base_path, test=False):
                     'bgap_basc3srp_template.csv'),
     }
 
+    # TODO: template file for KSADS
+    # TODO: uploader for KSADS (handles data extraction & upload flow)
+    # TODO: KsadsReport (just instantiates report for handling)
+    # TODO: KsadsUploader (handles report instance; extracts data; upload)
+        # needs parse_template method to get rc field names
+        # needs pull method to map rc field names to actual scores values from report
+
+    # crawl over path for reports
+    # match file name regex of each report to file in directory
+    # make sure id and tp are consistent
     print(f'Crawling over {data_path} for reports...\n')
     report_matches, errors = bgap_crawl(data_path, report_handlers)
 
@@ -503,6 +513,8 @@ def bgap_upload(base_path, test=False):
         if uploader is None:
             continue
 
+        # push() => parse using pull() & push data to redcap
+        # pull() => return list of dictionaries of field-names -> score values
         print(f'Parsing and pushing scores for {report_type}...\n')
         subjs_events, response, push_errors = uploader.push()
         errors += push_errors
