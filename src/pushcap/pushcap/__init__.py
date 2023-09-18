@@ -4,5 +4,5 @@ from .qinteractive_uploader import (QInteractiveUploader, QInteractiveUploaderEr
 from .qglobal_uploader import (QGlobalUploader, QGlobalUploaderError, QGlobalReport)
 from .dkefs_uploader import DkefsUploader, DkefsUploaderError, DkefsReport
 from .cpt_uploader import CptUploader, CptUploaderError, CptReport
-from .ksads_uploader import KsadsUploader, KsadsUploaderError
+from .ksads_uploader import KsadsUploader, KsadsUploaderError, KsadsReport
 

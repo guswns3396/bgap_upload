@@ -2,6 +2,7 @@ import csv
 
 from . import RedcapUploader, RedcapUploaderError
 
+
 class KsadsUploader(RedcapUploader):
     def __init__(self, report_path, template_path, parse_id_fn, api_url, token,
                  log_path, date_fields=None, uploaded_status=None,
@@ -34,8 +35,8 @@ class KsadsUploader(RedcapUploader):
                              if field not in self.field_names()]
         if bad_redcap_fields:
             raise ValueError(
-                    'These field(s) do not exist in the REDCap database:\n' +
-                    ", ".join(bad_redcap_fields))
+                'These field(s) do not exist in the REDCap database:\n' +
+                ", ".join(bad_redcap_fields))
 
     def pull(self):
         errors = []
@@ -52,8 +53,8 @@ class KsadsUploader(RedcapUploader):
 
                 if self._skip_complete:
                     redcap_vals = {
-                            rcvar: value for rcvar, value in redcap_vals.items()
-                            if not self.is_complete(subj_id, event, rcvar)}
+                        rcvar: value for rcvar, value in redcap_vals.items()
+                        if not self.is_complete(subj_id, event, rcvar)}
 
                 if redcap_vals:
                     redcap_fields = list(redcap_vals.keys())
@@ -80,6 +81,12 @@ class KsadsUploader(RedcapUploader):
 
     def change_log_path(self, new_log_path):
         self._log_path = new_log_path
-                
+
+
+class KsadsReport:
+    def __init__(self, report_path):
+        self.report_path = report_path
+
+
 class KsadsUploaderError(RedcapUploaderError):
     pass
