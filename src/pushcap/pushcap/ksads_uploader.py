@@ -1,4 +1,5 @@
 import csv
+import re
 
 from . import RedcapUploader, RedcapUploaderError
 
@@ -38,9 +39,129 @@ class KsadsUploader(RedcapUploader):
                 'These field(s) do not exist in the REDCap database:\n' +
                 ", ".join(bad_redcap_fields))
 
+    def pull_helper(self, lttbhs, template):
+        """
+        lttbhs: All the LTTextBoxHorizontal elements from the PDF file.
+                Contains all the necessary text data
+        template: CSV that contains REDCap variable name and field label
+
+         Maps extracted data from PDF to corresponding REDCap variable
+
+         Returns: dict that maps REDCap variable name to corresponding value extracted from PDF
+        """
+
+        mapping = {}
+        for i in range(len(lttbhs)):
+            lttbh = lttbhs.eq(i)
+            txt = lttbh.text().strip()
+            x0 = float(lttbh.attr('x0'))
+
+            # x0 = 73.62 => 253.89
+            # x0 = 384.863 => 478.309
+
+            if txt == 'User Information':
+                continue
+            # User Information type
+            if x0 in [73.62, 384.863]:
+                info_type = txt
+            # user info val
+            elif x0 in[253.89, 478.309]:
+                info_val = txt
+                if info_type == 'Patient Id':
+                    pat_id, year = info_val.split('_')
+                    mapping[self.id_field()] = pat_id
+                # TODO: finish user info
+            # items associated with columns
+            elif x0 in [93.486, 99.373]:
+                # replace present (occurs after comma or code) with current
+                txt = re.sub(r', present', ', Current', txt, flags=re.IGNORECASE)
+                txt = re.sub(r'\) present', ') Current', txt, flags=re.IGNORECASE)
+
+                # replace special characters
+                spec_char = {
+                    b'\xef\xac\x81': 'fi'
+                }
+                for k in spec_char.keys():
+                    txt = txt.replace(k.decode('utf-8'), spec_char[k])
+
+                # separate into tokens
+                if x0 == 93.486:
+                    # skip if Suicidality
+                    if 'Suicidality' in txt:
+                        continue
+
+                    # by space if disorder (only extract code & remission & time)
+                    time = re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE).group()
+                    code = re.search(r"\(.+?\)", txt).group()
+                    remission = re.search(r'(partial remission)', txt, re.IGNORECASE)
+
+                    # find field label with time, code, remission
+                    ind = template['Field Label'].str.contains(r'\b' + time)
+                    ind &= template['Field Label'].str.contains(code, regex=False)
+                    ind &= template['Field Label'].str.contains('partial remission', case=False, regex=False) \
+                        if remission \
+                        else ~template['Field Label'].str.contains('partial remission', case=False, regex=False)
+
+                    # make sure only 1 field corresponds
+                    if ind.sum() != 1:
+                        raise ValueError(
+                            "Field should have exactly 1 match\n" +
+                            f"{txt}: {code} | {remission.group()} | {time}\n" +
+                            ', '.join(template.loc[ind]['Field Label'].values)
+                        )
+
+                    # add to df for mapping (value = txt)
+                    col = template.loc[ind]['Variable / Field Name'].values[0]
+                    if col in mapping:
+                        raise ValueError(
+                            f"Field Name already exists: {col}"
+                        )
+                    mapping[col] = txt
+
+                elif x0 == 99.373:
+                    # by , if symptoms
+                    tokens = txt.split(',')
+
+                    # verify exactly 2 tokens (symptom, time)
+                    if len(tokens) != 2:
+                        raise ValueError(
+                            "Expected 2 tokens from symptom item\n" +
+                            " | ".join(tokens)
+                        )
+
+                    # extract symptom, time
+                    symp, time = tokens
+                    time = time.strip()
+                    # find field label with symptom & time
+                    ind = template['Field Label'].str.contains(symp, case=False, regex=False)
+                    ind &= template['Field Label'].str.contains(r'\b' + time)
+
+                    # make sure only 1 field corresponds
+                    if ind.sum() != 1:
+                        raise ValueError(
+                            "Field should have exactly 1 match\n" +
+                            f"{txt}: {symp} | {time}\n" +
+                            ', '.join(template.loc[ind]['Field Label'].values)
+                        )
+
+                    # add to df for mapping (value = 1)
+                    col = template.loc[ind]['Variable / Field Name'].values[0]
+                    if col in mapping:
+                        raise ValueError(
+                            f"Field Name already exists: {col}"
+                        )
+                    mapping[col] = 1
+
+            else:
+                continue
+
+        return mapping
+
     def pull(self):
         errors = []
         pulled_data = []
+
+
 
         with open(self._report_path, 'r') as report_file:
             for scores in csv.DictReader(report_file):
