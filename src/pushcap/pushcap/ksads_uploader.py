@@ -66,12 +66,17 @@ class KsadsUploader(RedcapUploader):
             )
 
         # parse information data (id, event, date)
-        subj, event = info_els[-4].txt.split('_')
-        event = 'year_' + event + '_arm_1'
-        redcap_vals[self.id_field()] = subj
-        redcap_vals[self.event_field()] = event
-        date_field = template[template['Variable / Field Name'].str.contains('date')]['Variable / Field Name'].values[0]
-        redcap_vals[date_field] = info_els[1].txt
+        for info_el in info_els:
+            txt = info_el.txt
+            if re.match('\d+_\d', txt):
+                subj, event = txt.split('_')
+                event = 'year_' + event + '_arm_1'
+                redcap_vals[self.id_field()] = subj
+                redcap_vals[self.event_field()] = event
+            elif re.match('\d\d?/\d\d?/\d\d\d?\d?', txt):
+                date_field = \
+                    template[template['Variable / Field Name'].str.contains('date')]['Variable / Field Name'].values[0]
+                redcap_vals[date_field] = txt
 
         # parse diagnosis data
         df = pd.DataFrame([[item.pg, item.x0, item.y1, item.txt] for item in diag_els],
@@ -122,7 +127,6 @@ class KsadsUploader(RedcapUploader):
             for idx, item_type in xs.items():
                 if diag_xs[int(idx)] == row['x0']:
                     break
-            print(txt, item_type)
             # get time
             if item_type == 'time_x':
                 time = txt[:-len(' Diagnosis')]
@@ -151,11 +155,17 @@ class KsadsUploader(RedcapUploader):
                     # by space if disorder (only extract code & remission & time)
                     time = re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE).group() if re.search(
                         r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE) else time
-                    code = re.search(r"F\d+[.]\d+", txt).group()
+                    code = re.search(r"F\d+[.]\d+", txt)
+                    if code:
+                        code = code.group()
+                    else:
+                        # special case => sleep problems
+                        if re.search('sleep problems', txt, re.IGNORECASE):
+                            code = 'sleep problems'
                     remission = re.search(r'(partial remission)', txt, re.IGNORECASE)
                     # find field label with time, code, remission
                     ind = template['Field Label'].str.contains(r'\b' + time)
-                    ind &= template['Field Label'].str.contains(code, regex=False)
+                    ind &= template['Field Label'].str.contains(code, case=False, regex=False)
                     ind &= template['Field Label'].str.contains('partial remission', case=False, regex=False) \
                         if remission \
                         else ~template['Field Label'].str.contains('partial remission', case=False, regex=False)
