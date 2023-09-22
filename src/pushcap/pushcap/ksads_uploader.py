@@ -78,46 +78,51 @@ class KsadsUploader(RedcapUploader):
                           columns=['pg', 'x0', 'y1', 'txt'])
 
         # get indices of element type's x0 in diag_xs
-        def get_idx(df):
-            time_x = 0
-            no_diag_x = time_x + 1 if df['txt'].str.contains('No diagnosis').any() else 0
-            dis_type_x = no_diag_x + 1 if df['txt'].str.contains('No diagnosis').sum() < 2 else 0
-            diag_x = dis_type_x + 1 if dis_type_x else 0
-            symp_x = diag_x + 1 if diag_x else 0
-            suicid_symp_x = symp_x + 1 if df['txt'].str.contains('Suicidality').any() else 0
-            desc_x = suicid_symp_x + 1 if suicid_symp_x else 0
-            casa_x = desc_x + 1 if desc_x else 0
-            comments_x = casa_x + 1 if casa_x else 0
+        def get_idx(df, diag_xs):
+            xs = []
+            xs.append('time_x')
+            if df['txt'].str.contains('No diagnosis').any():
+                xs.append('no_diag_x')
+            if df['txt'].str.contains('No diagnosis').sum() < 2:
+                xs.append('dis_type_x')
+            if 'dis_type_x' in xs:
+                xs.append('diag_x')
+            if 'diag_x' in xs and \
+                ~df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').any():
+                xs.append('symp_x')
+            if df['txt'].str.contains('Suicidality').any():
+                xs.append('suicid_symp_x')
+            if 'suicid_symp_x' in xs:
+                xs.append('desc_x')
+            if 'desc_x' in xs:
+                xs.append('casa_x')
+            if 'casa_x' in xs:
+                xs.append('comments_x')
 
             xs = pd.Series(
-                [time_x, no_diag_x, dis_type_x, diag_x, symp_x, suicid_symp_x, desc_x, casa_x, comments_x],
-                index="time_x, no_diag_x, dis_type_x, diag_x, symp_x, suicid_symp_x, desc_x, casa_x, comments_x".split(
-                    ', ')
+                xs
             )
 
-            xs = xs.replace(0, np.nan)
-            xs.loc['time_x'] = 0
+            return xs
 
-            return xs[~xs.isna()]
-
-        xs = get_idx(df)
+        xs = get_idx(df, diag_xs)
 
         # verify xs match length of diag_xs
         if not len(xs) == len(diag_xs):
             raise ValueError(
-                f"Expected lengh of xs to match length of diagnosis x0 found\n" +
-                f"length of xs: {len(xs)}\n" +
-                f"length of diagnosis x0s: {len(diag_xs)}"
+                f"Expected lengh of xs to match length of diagnosis x0 found {subj, event}\n" +
+                f"xs: {xs}\n" +
+                f"diagnosis x0s: {diag_xs}"
             )
 
         suicid_fields = []
         for i, row in df.iterrows():
             txt = row['txt']
-
             # get item type
-            for item_type, idx in xs.items():
+            for idx, item_type in xs.items():
                 if diag_xs[int(idx)] == row['x0']:
                     break
+            print(txt, item_type)
             # get time
             if item_type == 'time_x':
                 time = txt[:-len(' Diagnosis')]
@@ -384,7 +389,6 @@ class KsadsUploader(RedcapUploader):
 
             template = pd.read_csv(self._template_path)
             redcap_vals = self.parse_data(diag_els, info_els, template)
-
 
             # TODO: verify youth vs parent
             # verify subj, event matches, youth vs parent
