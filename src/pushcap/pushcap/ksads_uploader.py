@@ -388,62 +388,67 @@ class KsadsUploader(RedcapUploader):
             info_els = self.sort_el_coord(self.parse_info_elements(doc))
 
             template = pd.read_csv(self._template_path)
-            redcap_vals = self.parse_data(diag_els, info_els, template)
-
-            # TODO: verify youth vs parent
-            # verify subj, event matches, youth vs parent
-            pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
-            pdf_source = 'P' if info_els[3].txt == 'Parent' else 'Y'
             try:
-                if pdf_subj != subj:
-                    raise KsadsUploaderError(
-                        f'Form subject ID {pdf_subj} does not '
-                        f'match the provided subject ID.', subj_id=subj,
-                        event=event, form_path=report.report_path
-                    )
-                if pdf_event != event:
-                    raise KsadsUploaderError(
-                        f'Form timepoint {pdf_event} does not '
-                        f'match the provided timepoint.', subj_id=subj,
-                        event=event, form_path=report.report_path
-                    )
-                source = os.path.split(report.report_path)[-1][0]
-                if pdf_source != source:
-                    raise KsadsUploaderError(
-                        f'Form source must match: {source} vs {pdf_source} ',
-                        subj_id=subj, event=event, form_path=report.report_path
-                    )
-            except KsadsUploaderError as err:
-                errors.append(err)
-                continue
-
-            # skip if already complete
-            skip = False
-            for field in redcap_vals:
-                if field == self.id_field() or field == self.event_field():
+                redcap_vals = self.parse_data(diag_els, info_els, template)
+            except ValueError as err:
+                errors.append(
+                    KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
+                )
+                redcap_vals = None
+            else:
+                # verify subj, event matches, youth vs parent
+                pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
+                pdf_source = 'P' if info_els[3].txt == 'Parent' else 'Y'
+                try:
+                    if pdf_subj != subj:
+                        raise KsadsUploaderError(
+                            f'Form subject ID {pdf_subj} does not '
+                            f'match the provided subject ID.', subj_id=subj,
+                            event=event, form_path=report.report_path
+                        )
+                    if pdf_event != event:
+                        raise KsadsUploaderError(
+                            f'Form timepoint {pdf_event} does not '
+                            f'match the provided timepoint.', subj_id=subj,
+                            event=event, form_path=report.report_path
+                        )
+                    source = os.path.split(report.report_path)[-1][0]
+                    if pdf_source != source:
+                        raise KsadsUploaderError(
+                            f'Form source must match: {source} vs {pdf_source} ',
+                            subj_id=subj, event=event, form_path=report.report_path
+                        )
+                except KsadsUploaderError as err:
+                    errors.append(err)
                     continue
-                elif (self._skip_complete and
-                      self.is_complete(subj, event, field)):
-                    skip = True
-                    break
-                else:
-                    completed_field = self.completed_field(field)
-                    redcap_vals[completed_field] = self._uploaded_status
-                    break
-            if skip:
-                continue
 
-            # verify all cols exist
-            bad_redcap_fields = []
-            for field in redcap_vals.keys():
-                if field == self.id_field() or field == self.event_field():
+                # skip if already complete
+                skip = False
+                for field in redcap_vals:
+                    if field == self.id_field() or field == self.event_field():
+                        continue
+                    elif (self._skip_complete and
+                          self.is_complete(subj, event, field)):
+                        skip = True
+                        break
+                    else:
+                        completed_field = self.completed_field(field)
+                        redcap_vals[completed_field] = self._uploaded_status
+                        break
+                if skip:
                     continue
-                elif field not in self.field_names():
-                    bad_redcap_fields.append(field)
-            if bad_redcap_fields:
-                raise ValueError(
-                    'These field(s) do not exist in the REDCap database:\n' +
-                    ", ".join(bad_redcap_fields))
+
+                # verify all cols exist
+                bad_redcap_fields = []
+                for field in redcap_vals.keys():
+                    if field == self.id_field() or field == self.event_field():
+                        continue
+                    elif field not in self.field_names():
+                        bad_redcap_fields.append(field)
+                if bad_redcap_fields:
+                    raise ValueError(
+                        'These field(s) do not exist in the REDCap database:\n' +
+                        ", ".join(bad_redcap_fields))
 
             if redcap_vals:
                 pulled_data.append(redcap_vals)
