@@ -1,4 +1,5 @@
 import re
+import os
 
 import numpy as np
 import pdfquery
@@ -37,7 +38,6 @@ class KsadsUploader(RedcapUploader):
         else:
             self._uploaded_status = uploaded_status
         self._skip_complete = skip_complete
-
 
     def parse_data(self, diag_els, info_els, template):
         """
@@ -144,7 +144,8 @@ class KsadsUploader(RedcapUploader):
                     if 'Suicidality' in txt:
                         continue
                     # by space if disorder (only extract code & remission & time)
-                    time = re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE).group() if re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE) else time
+                    time = re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE).group() if re.search(
+                        r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE) else time
                     code = re.search(r"F\d+[.]\d+", txt).group()
                     remission = re.search(r'(partial remission)', txt, re.IGNORECASE)
                     # find field label with time, code, remission
@@ -289,7 +290,7 @@ class KsadsUploader(RedcapUploader):
             return prop
 
         info_elements = doc.find('LTTextBoxHorizontal').filter(filter_info_el)
-        
+
         return info_elements
 
     @staticmethod
@@ -343,7 +344,7 @@ class KsadsUploader(RedcapUploader):
         diag_elements = doc.find('LTTextBoxHorizontal').filter(filter_diag_el)
 
         return diag_elements
-    
+
     @staticmethod
     def sort_el_coord(elements):
         """
@@ -384,21 +385,29 @@ class KsadsUploader(RedcapUploader):
             template = pd.read_csv(self._template_path)
             redcap_vals = self.parse_data(diag_els, info_els, template)
 
-            # verify subj, event matches
+
             # TODO: verify youth vs parent
+            # verify subj, event matches, youth vs parent
             pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
+            pdf_source = 'P' if info_els[3].txt == 'Parent' else 'Y'
             try:
                 if pdf_subj != subj:
-                        raise KsadsUploaderError(
-                            f'Form subject ID {pdf_subj} does not '
-                            f'match the provided subject ID.', subj_id=subj,
-                            event=event, form_path=report.report_path
-                        )
+                    raise KsadsUploaderError(
+                        f'Form subject ID {pdf_subj} does not '
+                        f'match the provided subject ID.', subj_id=subj,
+                        event=event, form_path=report.report_path
+                    )
                 if pdf_event != event:
                     raise KsadsUploaderError(
                         f'Form timepoint {pdf_event} does not '
                         f'match the provided timepoint.', subj_id=subj,
                         event=event, form_path=report.report_path
+                    )
+                source = os.path.split(report.report_path)[-1][0]
+                if pdf_source != source:
+                    raise KsadsUploaderError(
+                        f'Form source must match: {source} vs {pdf_source} ',
+                        subj_id=subj, event=event, form_path=report.report_path
                     )
             except KsadsUploaderError as err:
                 errors.append(err)
@@ -410,7 +419,7 @@ class KsadsUploader(RedcapUploader):
                 if field == self.id_field() or field == self.event_field():
                     continue
                 elif (self._skip_complete and
-                        self.is_complete(subj, event, field)):
+                      self.is_complete(subj, event, field)):
                     skip = True
                     break
                 else:
@@ -432,8 +441,8 @@ class KsadsUploader(RedcapUploader):
                     'These field(s) do not exist in the REDCap database:\n' +
                     ", ".join(bad_redcap_fields))
 
-            if redcap_vals:
-                pulled_data.append(redcap_vals)
+            # if redcap_vals:
+            #     pulled_data.append(redcap_vals)
 
         return pulled_data, errors
 
