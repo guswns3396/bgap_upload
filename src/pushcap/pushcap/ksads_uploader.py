@@ -88,7 +88,7 @@ class KsadsUploader(RedcapUploader):
             if 'dis_type_x' in xs:
                 xs.append('diag_x')
             if 'diag_x' in xs and \
-                ~df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').any():
+                    (~df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality')).any():
                 xs.append('symp_x')
             if df['txt'].str.contains('Suicidality').any():
                 xs.append('suicid_symp_x')
@@ -178,7 +178,16 @@ class KsadsUploader(RedcapUploader):
                     # if 0 found use time from time_x
                     time = time.strip()
                     # find field label with symptom & time
-                    ind = template['Field Label'].str.contains(symp, case=False, regex=False)
+                    # special case => stealing
+                    if re.search('stealing', symp, re.IGNORECASE):
+                        if 'confronting' in symp:
+                            ind = template['Field Label'].str.contains(symp, case=False, regex=False)
+                            ind &= template['Field Label'].str.contains('confronting', case=False, regex=False)
+                        else:
+                            ind = template['Field Label'].str.contains(symp, case=False, regex=False)
+                            ind &= ~template['Field Label'].str.contains('confronting', case=False, regex=False)
+                    else:
+                        ind = template['Field Label'].str.contains(symp, case=False, regex=False)
                     ind &= template['Field Label'].str.contains(r'\b' + time)
                 else:
                     pass
@@ -187,7 +196,7 @@ class KsadsUploader(RedcapUploader):
                 if ind.sum() > 1:
                     raise ValueError(
                         "Field should have at most 1 match\n" +
-                        f"{txt}" +
+                        f"{txt}\n" +
                         ', '.join(template.loc[ind]['Field Label'].values)
                     )
                 # no matches => continue without mapping
@@ -207,15 +216,15 @@ class KsadsUploader(RedcapUploader):
                     continue
 
                 # replace : with -
-                txt = txt.replace(':', ' -').replace('\n', ' ')
+                txt = txt.replace(':', ' -').replace('\n', ' ').replace(',', '')
                 # match txt with field
                 ind = template['Field Label'].str.contains(txt, case=False, regex=False)
 
                 # only 1 match
                 if ind.sum() != 1:
                     raise ValueError(
-                        "Field should have at most 1 match\n" +
-                        f"{txt}" +
+                        "Field should exactly 1 match\n" +
+                        f"{txt}\n" +
                         ', '.join(template.loc[ind]['Field Label'].values)
                     )
 
@@ -390,7 +399,7 @@ class KsadsUploader(RedcapUploader):
             template = pd.read_csv(self._template_path)
             try:
                 redcap_vals = self.parse_data(diag_els, info_els, template)
-            except ValueError as err:
+            except Exception as err:
                 errors.append(
                     KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
                 )
