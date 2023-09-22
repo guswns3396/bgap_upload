@@ -405,18 +405,20 @@ class KsadsUploader(RedcapUploader):
                 continue
 
             # skip if already complete
-            completed_fields = []
+            skip = False
             for field in redcap_vals:
                 if field == self.id_field() or field == self.event_field():
                     continue
                 elif (self._skip_complete and
                         self.is_complete(subj, event, field)):
-                    continue
+                    skip = True
+                    break
                 else:
                     completed_field = self.completed_field(field)
-                    completed_fields.append(completed_field)
-            for completed_field in completed_fields:
-                redcap_vals[completed_field] = self._uploaded_status
+                    redcap_vals[completed_field] = self._uploaded_status
+                    break
+            if skip:
+                continue
 
             # verify all cols exist
             bad_redcap_fields = []
