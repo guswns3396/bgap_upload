@@ -99,9 +99,18 @@ class KsadsUploader(RedcapUploader):
                 xs.append('suicid_symp_x')
             if 'suicid_symp_x' in xs:
                 xs.append('desc_x')
+            if 'diag_x' in xs and \
+                    df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').sum() == 2:
+                xs.append('desc_x')
             if 'desc_x' in xs:
                 xs.append('casa_x')
+            if 'diag_x' in xs and \
+                    df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').sum() == 2:
+                xs.append('casa_x')
             if 'casa_x' in xs:
+                xs.append('comments_x')
+            if 'diag_x' in xs and \
+                    df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').sum() == 2:
                 xs.append('comments_x')
 
             xs = pd.Series(
@@ -112,6 +121,8 @@ class KsadsUploader(RedcapUploader):
 
         xs = get_idx(df, diag_xs)
 
+        # print(df.sort_values(['x0', 'y1']))
+
         # verify xs match length of diag_xs
         if not len(xs) == len(diag_xs):
             raise ValueError(
@@ -121,12 +132,14 @@ class KsadsUploader(RedcapUploader):
             )
 
         suicid_fields = []
+        mapText = False
         for i, row in df.iterrows():
             txt = row['txt']
             # get item type
             for idx, item_type in xs.items():
                 if diag_xs[int(idx)] == row['x0']:
                     break
+            # print(txt, item_type)
             # get time
             if item_type == 'time_x':
                 time = txt[:-len(' Diagnosis')]
@@ -139,6 +152,7 @@ class KsadsUploader(RedcapUploader):
                 # replace present (occurs after comma or code) with current
                 txt = re.sub(r', present', ', Current', txt, flags=re.IGNORECASE)
                 txt = re.sub(r'\) present', ') Current', txt, flags=re.IGNORECASE)
+                txt = re.sub(r'–present', '–Current', txt, flags=re.IGNORECASE)
 
                 # replace special characters
                 spec_char = {
@@ -155,20 +169,15 @@ class KsadsUploader(RedcapUploader):
                     # by space if disorder (only extract code & remission & time)
                     time = re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE).group() if re.search(
                         r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE) else time
-                    code = re.search(r"F\d+[.]\d+", txt)
-                    if code:
-                        code = code.group()
-                    else:
-                        # special case => sleep problems
-                        if re.search('sleep problems', txt, re.IGNORECASE):
-                            code = 'sleep problems'
-                    remission = re.search(r'(partial remission)', txt, re.IGNORECASE)
-                    # find field label with time, code, remission
-                    ind = template['Field Label'].str.contains(r'\b' + time)
-                    ind &= template['Field Label'].str.contains(code, case=False, regex=False)
-                    ind &= template['Field Label'].str.contains('partial remission', case=False, regex=False) \
-                        if remission \
-                        else ~template['Field Label'].str.contains('partial remission', case=False, regex=False)
+                    # find field label with time,tokens
+                    ind = template['Section Header'].str.contains(r'\b' + time)
+                    # match tokens
+                    tokens = re.sub(r'[:()\-,–]|(Single Episode)', '', txt, flags=re.IGNORECASE).split()
+                    for token in tokens:
+                        ind &= template['Field Label'].str.contains(token, case=False, regex=False)
+                    # special cases to map text instead of mapping code
+                    if re.search('sleep problems', txt, re.IGNORECASE) or re.search('insomnia', txt, re.IGNORECASE):
+                        mapText = True
                 # if symptom
                 elif item_type == 'symp_x':
                     # by , if symptoms
@@ -198,7 +207,7 @@ class KsadsUploader(RedcapUploader):
                             ind &= ~template['Field Label'].str.contains('confronting', case=False, regex=False)
                     else:
                         ind = template['Field Label'].str.contains(symp, case=False, regex=False)
-                    ind &= template['Field Label'].str.contains(r'\b' + time)
+                    ind &= template['Section Header'].str.contains(r'\b' + time)
                 else:
                     pass
 
@@ -209,9 +218,21 @@ class KsadsUploader(RedcapUploader):
                         f"{txt}\n" +
                         ', '.join(template.loc[ind]['Field Label'].values)
                     )
-                # no matches => continue without mapping
+                # raise if no matches unless special case
                 elif ind.sum() == 0:
-                    continue
+                    # special case: phobia
+                    if re.search('phobi', txt, re.IGNORECASE):
+                        continue
+                    # special case: mapping text
+                    elif mapText:
+                        mapText = False
+                        continue
+                    else:
+                        raise ValueError(
+                            "Field should have at least 1 match\n" +
+                            f"{txt}\n" +
+                            f"{tokens}"
+                        )
 
                 # add to df for mapping (value = 1)
                 col = template.loc[ind]['Variable / Field Name'].values[0]
@@ -219,7 +240,12 @@ class KsadsUploader(RedcapUploader):
                     raise ValueError(
                         f"Field Name already exists: {col}"
                     )
-                redcap_vals[col] = 1
+                # special cases (do not map to 1 but text of next item)
+                if mapText:
+                    redcap_vals[col] = df.loc[i+1]['txt']
+                # otherwise just map to 1
+                else:
+                    redcap_vals[col] = 1
             elif item_type == 'suicid_symp_x':
                 # just header
                 if txt == 'Symptom':
@@ -229,6 +255,7 @@ class KsadsUploader(RedcapUploader):
                 txt = txt.replace(':', ' -').replace('\n', ' ').replace(',', '')
                 # match txt with field
                 ind = template['Field Label'].str.contains(txt, case=False, regex=False)
+                ind &= template['Field Label'].str.contains(time, case=False, regex=False)
 
                 # only 1 match
                 if ind.sum() != 1:
@@ -251,14 +278,14 @@ class KsadsUploader(RedcapUploader):
                 redcap_vals[suicid_field].append("Description: " + txt.replace('\n', ' '))
             elif item_type == 'casa_x':
                 # just header
-                if txt == 'C-\nCASA\nCode':
+                if re.search(r'C-\s?CASA\s?Code', txt):
                     continue
 
                 # get casa code
                 redcap_vals[suicid_field].append('C-CASA Code: ' + txt.replace('\n', ' '))
             elif item_type == 'comments_x':
                 # just header
-                if txt == 'Patient\nComments':
+                if re.search(r'Patient\sComments', txt):
                     continue
 
                 # get patient comments
@@ -271,6 +298,7 @@ class KsadsUploader(RedcapUploader):
         for suicid_field in suicid_fields:
             redcap_vals[suicid_field] = ' | '.join(redcap_vals[suicid_field])
 
+        # print(redcap_vals)
         return redcap_vals
 
     @staticmethod
@@ -414,6 +442,7 @@ class KsadsUploader(RedcapUploader):
                     KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
                 )
                 redcap_vals = None
+                # raise err
             else:
                 # verify subj, event matches, youth vs parent
                 pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
