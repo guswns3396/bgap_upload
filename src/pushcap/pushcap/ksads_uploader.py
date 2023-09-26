@@ -498,6 +498,8 @@ class KsadsUploader(RedcapUploader):
                         'These field(s) do not exist in the REDCap database:\n' +
                         ", ".join(bad_redcap_fields))
 
+                # TODO: overwrite other cols to be blank?
+
             if redcap_vals:
                 pulled_data.append(redcap_vals)
 
