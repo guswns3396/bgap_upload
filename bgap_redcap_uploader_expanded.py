@@ -480,7 +480,7 @@ def bgap_upload(base_path, test=False):
         #                            r'(?P<tp>\d)\.docx?'),
         #                 make_qglobal_uploader,
         #                 'bgap_basc3srp_template.csv'),
-        'Y-KSADS': (re.compile(r'.*[/\\]Y_KSADS_Report_(?P<id>\d+)_'
+        'Y-KSADS': (re.compile(r'.*[/\\]Y_KSADS_(?:Report_)?(?P<id>\d+)_'
                                r'(?P<tp>\d)\.pdf'),
                     make_ksads_uploader,
                     'bgap_yksads_template.csv'),
