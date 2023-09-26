@@ -541,6 +541,9 @@ def main(arg):
     elif arg == '--server':
         # bgap_upload(Path('/Volumes/Projects/KSTRT/Data')) # MacOS
         bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=False)  # WindowsOS
+    # upload from server to test DB
+    elif arg == '--tserver':
+        bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=True)  # WindowsOS
     else:
         raise ValueError("Flag must be '--test', '--real', or '--server'")
 
