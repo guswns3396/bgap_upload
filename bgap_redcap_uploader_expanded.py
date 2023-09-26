@@ -427,7 +427,7 @@ def make_ksads_uploader(matches, template_path, api_url, token, log_path):
         ksads_upl = None
     else:
         ksads_upl = KsadsUploader(reports, template_path, api_url, token, log_path,
-                                  date_fields=('yksads_date',))
+                                  date_fields=('yksads_date', 'pksads_date'))
 
     return ksads_upl, errors
 
@@ -484,6 +484,10 @@ def bgap_upload(base_path, test=False):
                                r'(?P<tp>\d)\.pdf'),
                     make_ksads_uploader,
                     'bgap_yksads_template.csv'),
+        'P-KSADS': (re.compile(r'.*[/\\]P_KSADS_(?:Report_)?(?P<id>\d+)_'
+                               r'(?P<tp>\d)\.pdf'),
+                    make_ksads_uploader,
+                    'bgap_pksads_template.csv'),
     }
 
     # TODO: template file for KSADS
