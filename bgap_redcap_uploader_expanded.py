@@ -490,13 +490,6 @@ def bgap_upload(base_path, test=False):
                     'bgap_pksads_template.csv'),
     }
 
-    # TODO: template file for KSADS
-    # TODO: uploader for KSADS (handles data extraction & upload flow)
-    # TODO: KsadsReport (just instantiates report for handling)
-    # TODO: KsadsUploader (handles report instance; extracts data; upload)
-        # needs parse_template method to get rc field names
-        # needs pull method to map rc field names to actual scores values from report
-
     # crawl over path for reports
     # match file name regex of each report to file in directory
     # make sure id and tp are consistent
@@ -549,7 +542,7 @@ def main(arg):
     elif arg == '--tserver':
         bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=True)  # WindowsOS
     else:
-        raise ValueError("Flag must be '--test', '--real', or '--server'")
+        raise ValueError("Flag must be '--test', '--real', '--tserver', or '--server'")
 
 
 if __name__ == '__main__':
