@@ -149,47 +149,86 @@ class KsadsUploader(RedcapUploader):
                 continue
             # items associated with columns
             elif item_type == 'diag_x' or item_type == 'symp_x':
+                txt_processed = txt
                 # replace present (occurs after comma or code) with current
-                txt = re.sub(r', present', ', Current', txt, flags=re.IGNORECASE)
-                txt = re.sub(r'\) present', ') Current', txt, flags=re.IGNORECASE)
-                txt = re.sub(r'–present', '–Current', txt, flags=re.IGNORECASE)
+                txt_processed = re.sub(r'[,–-] ?present', ', Current', txt_processed, flags=re.IGNORECASE)
+                txt_processed = re.sub(r'[)] present', '), Current', txt_processed, flags=re.IGNORECASE)
 
                 # replace special characters
                 spec_char = {
-                    b'\xef\xac\x81': 'fi'
+                    b'\xef\xac\x81': 'fi',
+                    "’".encode('utf-8'): "'"
                 }
                 for k in spec_char.keys():
-                    txt = txt.replace(k.decode('utf-8'), spec_char[k])
+                    txt_processed = txt_processed.replace(k.decode('utf-8'), spec_char[k])
 
                 # if diagnosis
                 if item_type == 'diag_x':
                     # skip if Suicidality
-                    if 'Suicidality' in txt:
+                    if 'Suicidality' in txt_processed:
                         continue
-                    # by space if disorder (only extract code & remission & time)
-                    time = re.search(r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE).group() if re.search(
-                        r"(\bCurrent)|(\bPast)", txt, re.IGNORECASE) else time
-                    # find field label with time,tokens
-                    ind = template['Section Header'].str.contains(r'\b' + time)
+
+                    # by space if disorder (extract remission & time)
+                    if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
+                        time = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
+
+                    # find field label with time
+                    ind = template['Section Header'].str.contains(r'\b' + time, case=False)
+
+                    # find remission
+                    remission = re.search(
+                        r"(full)|(partial) remission", txt_processed, re.IGNORECASE).group() if re.search(
+                        r"(full)|(partial) remission", txt_processed, re.IGNORECASE) else ''
+                    if remission:
+                        ind &= template['Field Label'].str.contains(remission, case=False)
+                    else:
+                        ind &= ~template['Field Label'].str.contains('remission', case=False)
+
+                    # remove time & remission from txt_processed
+                    pat = r'(–?' + time + ')|(' + remission + ')'
+                    txt_processed = re.sub(pat, '', txt_processed)
+                    # replace newline with space
+                    txt_processed = re.sub('\n', ' ', txt_processed)
+
+                    # split by , ( or ) except in parentheses
+                    tokens = []
+                    splits = re.split(r',|\(|\)\s*(?![^()]*\))', txt_processed)
+                    for j, el in enumerate(splits):
+                        if j == 0:
+                            tokens.append(el.strip())
+                        else:
+                            tokens.extend(el.split())
+
+                    # special case 1: AD/H other inclusive of AD/H
+                    if 'Attention-Deficit/Hyperactivity Disorder' in txt_processed:
+                        if 'Other' in txt_processed:
+                            ind &= template['Field Label'].str.contains('Other', case=False, regex=False)
+                        else:
+                            ind &= ~template['Field Label'].str.contains('Other', case=False, regex=False)
+                    # special case 2: map to text instead of mapping to 1
+                    if re.search('sleep problems', txt_processed, re.IGNORECASE) or re.search('insomnia', txt_processed, re.IGNORECASE):
+                        mapText = True
+
                     # match tokens
-                    tokens = re.sub(r'[:()\-,–]|(Single Episode)', '', txt, flags=re.IGNORECASE).split()
                     for token in tokens:
                         ind &= template['Field Label'].str.contains(token, case=False, regex=False)
-                    # special cases to map text instead of mapping code
-                    if re.search('sleep problems', txt, re.IGNORECASE) or re.search('insomnia', txt, re.IGNORECASE):
-                        mapText = True
+                        # print(template.loc[ind, 'Field Label'])
+                        if ind.sum() == 1:
+                            break
+
                 # if symptom
                 elif item_type == 'symp_x':
                     # by , if symptoms
-                    tokens = txt.split(',')
+                    tokens = txt_processed.split(',')
                     # extract symptom, time
                     symp = tokens[0]
-                    time_matches = re.findall(r"(\bCurrent)|(\bPast)", txt, flags=re.IGNORECASE)
+                    time_matches = re.findall(r"(\bCurrent)|(\bPast)", re.sub(r' \([^)]*\)', '', txt_processed), flags=re.IGNORECASE)
                     # verify at most 1 time value
                     if len(time_matches) > 1:
+                        sub = re.sub(r' \([^)]*\)', '', txt)
                         raise ValueError(
                             f"Expected at most 1 value of time from symptom\n" +
-                            f"{time_matches}"
+                            f"{time_matches}\n{txt_processed}\n{sub}"
                         )
                     # if 1 found, use that as time
                     elif len(time_matches) == 1:
@@ -215,13 +254,14 @@ class KsadsUploader(RedcapUploader):
                 if ind.sum() > 1:
                     raise ValueError(
                         "Field should have at most 1 match\n" +
-                        f"{txt}\n" +
+                        f"{txt}\n{txt_processed}\n" +
+                        f"{tokens}\n" +
                         ', '.join(template.loc[ind]['Field Label'].values)
                     )
                 # raise if no matches unless special case
                 elif ind.sum() == 0:
                     # special case: phobia
-                    if re.search('phobi', txt, re.IGNORECASE):
+                    if re.search('phobi', txt_processed, re.IGNORECASE):
                         continue
                     # special case: mapping text
                     elif mapText:
@@ -230,7 +270,7 @@ class KsadsUploader(RedcapUploader):
                     else:
                         raise ValueError(
                             "Field should have at least 1 match\n" +
-                            f"{txt}\n" +
+                            f"{txt}\n{txt_processed}\n" +
                             f"{tokens}"
                         )
 
@@ -428,7 +468,7 @@ class KsadsUploader(RedcapUploader):
             pdf = pdfquery.PDFQuery(report.report_path)
             pdf.load()
             # convert the pdf to XML
-            pdf.tree.write('test.xml', pretty_print=True)
+            # pdf.tree.write('test.xml', pretty_print=True)
             doc = pdf.pq
             # parse pdf & sort elements
             diag_els = self.sort_el_coord(self.parse_diag_elements(doc))
@@ -437,7 +477,7 @@ class KsadsUploader(RedcapUploader):
             template = pd.read_csv(self._template_path)
             try:
                 redcap_vals = self.parse_data(diag_els, info_els, template)
-            except Exception as err:
+            except ValueError as err:
                 errors.append(
                     KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
                 )
@@ -463,7 +503,7 @@ class KsadsUploader(RedcapUploader):
                     source = os.path.split(report.report_path)[-1][0]
                     if pdf_source != source:
                         raise KsadsUploaderError(
-                            f'Form source must match: {source} vs {pdf_source} ',
+                            f'Form source must match: {source} vs {pdf_source, info_els[3].txt} ',
                             subj_id=subj, event=event, form_path=report.report_path
                         )
                 except KsadsUploaderError as err:
