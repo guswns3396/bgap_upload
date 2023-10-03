@@ -199,7 +199,7 @@ class KsadsUploader(RedcapUploader):
                         else:
                             tokens.extend(el.split())
 
-                    # special case 1: AD/H other inclusive of AD/H
+                    # special case 1: AD/H other vs AD/H
                     if 'Attention-Deficit/Hyperactivity Disorder' in txt_processed:
                         if 'Other' in txt_processed:
                             ind &= template['Field Label'].str.contains('Other', case=False, regex=False)
@@ -235,18 +235,29 @@ class KsadsUploader(RedcapUploader):
                         time = time_matches[0][0] if time_matches[0][0] else time_matches[0][1]
                     # if 0 found use time from time_x
                     time = time.strip()
+
                     # find field label with symptom & time
-                    # special case => stealing
+                    ind = template['Field Label'].str.contains(symp, case=False, regex=False)
+                    ind &= template['Section Header'].str.contains(r'\b' + time)
+
+                    # special case 1: stealing
                     if re.search('stealing', symp, re.IGNORECASE):
                         if 'confronting' in symp:
-                            ind = template['Field Label'].str.contains(symp, case=False, regex=False)
                             ind &= template['Field Label'].str.contains('confronting', case=False, regex=False)
                         else:
-                            ind = template['Field Label'].str.contains(symp, case=False, regex=False)
                             ind &= ~template['Field Label'].str.contains('confronting', case=False, regex=False)
-                    else:
-                        ind = template['Field Label'].str.contains(symp, case=False, regex=False)
-                    ind &= template['Section Header'].str.contains(r'\b' + time)
+                    # special case 2: irritability vs explosive irritability vs manic irritability
+                    elif re.search('irritability', symp, re.IGNORECASE):
+                        if 'Explosive' in txt_processed:
+                            ind &= template['Field Label'].str.contains('Explosive', case=False, regex=False)
+                        elif 'Manic' in txt_processed:
+                            ind &= template['Field Label'].str.contains('Manic', case=False, regex=False)
+                        else:
+                            ind &= ~template['Field Label'].str.contains('Explosive', case=False, regex=False)
+                            ind &= ~template['Field Label'].str.contains('Manic', case=False, regex=False)
+                    # special case 3: suicidal ideation is a symptom for any diagnosis
+                    elif re.search('suicidal ideation', symp, re.IGNORECASE):
+                        continue
                 else:
                     pass
 
