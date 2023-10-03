@@ -497,14 +497,30 @@ class KsadsUploader(RedcapUploader):
             else:
                 # verify subj, event matches, youth vs parent
                 pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
-                pdf_source = 'P' if info_els[3].txt == 'Parent' else 'Y'
+
+                # function to get source element
+                def get_source_element(element):
+                    if element.txt in ['Parent', 'Youth', 'Teen']:
+                        return True
+                    return False
                 try:
+                    # get source
+                    filtered = list(filter(get_source_element, info_els))
+                    if len(filtered) != 1:
+                        raise KsadsUploaderError(
+                            f'Error parsing source information: {[i.txt for i in filtered]}',
+                            subj_id=subj, event=event, form_path=report.report_path
+                        )
+                    else:
+                        pdf_source = 'P' if filtered[0].txt == 'Parent' else 'Y'
+                    # verify subj
                     if pdf_subj != subj:
                         raise KsadsUploaderError(
                             f'Form subject ID {pdf_subj} does not '
                             f'match the provided subject ID.', subj_id=subj,
                             event=event, form_path=report.report_path
                         )
+                    # verify event
                     if pdf_event != event:
                         raise KsadsUploaderError(
                             f'Form timepoint {pdf_event} does not '
@@ -512,6 +528,7 @@ class KsadsUploader(RedcapUploader):
                             event=event, form_path=report.report_path
                         )
                     source = os.path.split(report.report_path)[-1][0]
+                    # verify source
                     if pdf_source != source:
                         raise KsadsUploaderError(
                             f'Form source must match: {source} vs {pdf_source, info_els[3].txt} ',
