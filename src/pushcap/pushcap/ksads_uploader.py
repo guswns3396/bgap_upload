@@ -66,6 +66,7 @@ class KsadsUploader(RedcapUploader):
             )
 
         # parse information data (id, event, date)
+        date_field = None
         for info_el in info_els:
             txt = info_el.txt
             if re.match('\d+_\d', txt):
@@ -77,6 +78,22 @@ class KsadsUploader(RedcapUploader):
                 date_field = \
                     template[template['Variable / Field Name'].str.contains('date')]['Variable / Field Name'].values[0]
                 redcap_vals[date_field] = txt
+
+        if self.id_field() not in redcap_vals:
+            raise ValueError(
+                f'Could not parse ID\n' +
+                f'{[i.txt for i in info_els]}'
+            )
+        if self.event_field() not in redcap_vals:
+            raise ValueError(
+                f'Could not parse event\n' +
+                f'{[i.txt for i in info_els]}'
+            )
+        if date_field is None:
+            raise ValueError(
+                f'Could not parse date\n' +
+                f'{[i.txt for i in info_els]}'
+            )
 
         # parse diagnosis data
         df = pd.DataFrame([[item.pg, item.x0, item.y1, item.txt] for item in diag_els],
@@ -122,6 +139,7 @@ class KsadsUploader(RedcapUploader):
         xs = get_idx(df, diag_xs)
 
         # print(df.sort_values(['x0', 'y1']))
+        # print(df)
 
         # verify xs match length of diag_xs
         if not len(xs) == len(diag_xs):
@@ -142,7 +160,7 @@ class KsadsUploader(RedcapUploader):
             # print(txt, item_type)
             # get time
             if item_type == 'time_x':
-                time = txt[:-len(' Diagnosis')]
+                curr_time = txt[:-len(' Diagnosis')]
             elif item_type == 'no_diag_x':
                 continue
             elif item_type == 'dis_type_x':
@@ -153,6 +171,8 @@ class KsadsUploader(RedcapUploader):
                 # replace present (occurs after comma or code) with current
                 txt_processed = re.sub(r'[,–-] ?present', ', Current', txt_processed, flags=re.IGNORECASE)
                 txt_processed = re.sub(r'[)] present', '), Current', txt_processed, flags=re.IGNORECASE)
+                # replace newline with space
+                txt_processed = re.sub('\n', ' ', txt_processed)
 
                 # replace special characters
                 spec_char = {
@@ -168,11 +188,11 @@ class KsadsUploader(RedcapUploader):
                     if 'Suicidality' in txt_processed:
                         continue
 
-                    # by space if disorder (extract remission & time)
+                    # find time
                     if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
                         time = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
-
-                    # find field label with time
+                    else:
+                        time = curr_time
                     ind = template['Section Header'].str.contains(r'\b' + time, case=False)
 
                     # find remission
@@ -187,8 +207,6 @@ class KsadsUploader(RedcapUploader):
                     # remove time & remission from txt_processed
                     pat = r'(–?' + time + ')|(' + remission + ')'
                     txt_processed = re.sub(pat, '', txt_processed)
-                    # replace newline with space
-                    txt_processed = re.sub('\n', ' ', txt_processed)
 
                     # split by , ( or ) except in parentheses
                     tokens = []
@@ -212,13 +230,12 @@ class KsadsUploader(RedcapUploader):
                     # match tokens
                     for token in tokens:
                         ind &= template['Field Label'].str.contains(token, case=False, regex=False)
-                        # print(template.loc[ind, 'Field Label'])
                         if ind.sum() == 1:
                             break
 
                 # if symptom
                 elif item_type == 'symp_x':
-                    # by , if symptoms
+                    # split by , if symptoms
                     tokens = txt_processed.split(',')
                     # extract symptom, time
                     symp = tokens[0]
@@ -234,7 +251,8 @@ class KsadsUploader(RedcapUploader):
                     elif len(time_matches) == 1:
                         time = time_matches[0][0] if time_matches[0][0] else time_matches[0][1]
                     # if 0 found use time from time_x
-                    time = time.strip()
+                    else:
+                        time = curr_time.strip()
 
                     # find field label with symptom & time
                     ind = template['Field Label'].str.contains(symp, case=False, regex=False)
@@ -304,6 +322,11 @@ class KsadsUploader(RedcapUploader):
 
                 # replace : with -
                 txt = txt.replace(':', ' -').replace('\n', ' ').replace(',', '')
+                # get time
+                if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group():
+                    time = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
+                else:
+                    time = curr_time
                 # match txt with field
                 ind = template['Field Label'].str.contains(txt, case=False, regex=False)
                 ind &= template['Field Label'].str.contains(time, case=False, regex=False)
@@ -494,6 +517,11 @@ class KsadsUploader(RedcapUploader):
                 )
                 redcap_vals = None
                 # raise err
+            except UnboundLocalError as err:
+                errors.append(
+                    KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
+                )
+                redcap_vals = None
             else:
                 # verify subj, event matches, youth vs parent
                 pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
@@ -539,19 +567,23 @@ class KsadsUploader(RedcapUploader):
                     continue
 
                 # skip if already complete
-                skip = False
-                for field in redcap_vals:
-                    if field == self.id_field() or field == self.event_field():
+                try:
+                    skip = False
+                    for field in redcap_vals:
+                        if field == self.id_field() or field == self.event_field():
+                            continue
+                        elif (self._skip_complete and
+                              self.is_complete(subj, event, field)):
+                            skip = True
+                            break
+                        else:
+                            completed_field = self.completed_field(field)
+                            redcap_vals[completed_field] = self._uploaded_status
+                            break
+                    if skip:
                         continue
-                    elif (self._skip_complete and
-                          self.is_complete(subj, event, field)):
-                        skip = True
-                        break
-                    else:
-                        completed_field = self.completed_field(field)
-                        redcap_vals[completed_field] = self._uploaded_status
-                        break
-                if skip:
+                except RedcapUploaderError as err:
+                    errors.append(err)
                     continue
 
                 # verify all cols exist
