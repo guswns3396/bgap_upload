@@ -276,6 +276,9 @@ class KsadsUploader(RedcapUploader):
                     # special case 3: suicidal ideation is a symptom for any diagnosis
                     elif re.search('suicidal ideation', symp, re.IGNORECASE):
                         continue
+                    # special case 4: patient reported trouble falling asleep
+                    elif re.search('Patient reported trouble falling asleep or staying asleep', symp, re.IGNORECASE):
+                        continue
                 else:
                     pass
 
