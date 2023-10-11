@@ -435,9 +435,13 @@ class KsadsUploader(RedcapUploader):
                 else:
                     ind_arr &= ~template_arg['Field Label'].str.contains('Explosive', case=False, regex=False)
                     ind_arr &= ~template_arg['Field Label'].str.contains('Manic', case=False, regex=False)
-            # special case 3: suicidal ideation is a symptom for any diagnosis
-            elif re.search('suicidal ideation', symp, re.IGNORECASE):
-                return redcap_vals_arg
+            # special case 3: suicidal ideation as symptom
+            elif re.match('^suicidal ideation$', symp, re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.fullmatch(
+                    '^suicidal ideation: ' + time_str + '$',
+                    case=False
+                )
+                print(template_arg.loc[ind_arr])
             # special case 4: sleep problem => map to text
             elif re.search('Patient reported trouble falling asleep or staying asleep', symp, re.IGNORECASE):
                 ind_arr = template_arg['Field Label'].str.contains('sleep problems', case=False, regex=False)
@@ -542,7 +546,6 @@ class KsadsUploader(RedcapUploader):
                 raise ValueError(
                     f"Invalid item_type: {item_type}"
                 )
-            print(curr_vars)
         # turn suicidality fields from list to single string
         for suicide_field in suicide_fields:
             redcap_vals[suicide_field] = ' | '.join(redcap_vals[suicide_field])
