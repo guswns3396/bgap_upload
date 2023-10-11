@@ -374,6 +374,9 @@ class KsadsUploader(RedcapUploader):
             elif re.search('sleep problems', txt_processed, re.IGNORECASE) or \
                     re.search('insomnia', txt_processed, re.IGNORECASE):
                 return redcap_vals_arg
+            # special case 3: phobia not part of KSADS
+            elif re.search('phobi', txt_processed, re.IGNORECASE):
+                return redcap_vals_arg
 
             # match tokens
             for token in tokens_arr:
@@ -447,6 +450,9 @@ class KsadsUploader(RedcapUploader):
                 # use time from time_x since contains "past"
                 ind_arr &= template_arg['Section Header'].str.contains(r'\b' + curr_vars_arg['time'])
                 mapText = True
+            # special case 5: phobia not part of KSADS
+            elif re.search('phobi', symp, re.IGNORECASE):
+                return redcap_vals_arg
 
             # verify match
             verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
