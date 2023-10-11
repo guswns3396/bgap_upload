@@ -1,7 +1,6 @@
 import re
 import os
 
-import numpy as np
 import pdfquery
 import pandas as pd
 from pyquery import PyQuery
@@ -38,342 +37,6 @@ class KsadsUploader(RedcapUploader):
         else:
             self._uploaded_status = uploaded_status
         self._skip_complete = skip_complete
-
-    def parse_data(self, diag_els, info_els, template):
-        """
-        diag_items: list of Items containing diagnosis data
-        info_items: list of Items containing user information data
-        template: CSV that contains REDCap variable name and field label
-
-        Maps extracted data from PDF to corresponding REDCap variable
-
-        Returns: dict that maps REDCap variable name to corresponding value extracted from PDF
-        """
-        redcap_vals = {}
-
-        # get all xs
-        diag_xs = sorted(set(x.x0 for x in diag_els))
-        info_xs = sorted(set(x.x0 for x in info_els))
-
-        # verify formatting
-        if len(info_xs) != 5:
-            raise ValueError(
-                f"Expected 5 x0 values for info elements, got {len(info_xs)}"
-            )
-        if len(info_els) != 11:
-            raise ValueError(
-                f"Expected 11 elements for info elements, got {len(info_els)}"
-            )
-
-        # parse information data (id, event, date)
-        date_field = None
-        for info_el in info_els:
-            txt = info_el.txt
-            if re.match('\d+_\d', txt):
-                subj, event = txt.split('_')
-                event = 'year_' + event + '_arm_1'
-                redcap_vals[self.id_field()] = subj
-                redcap_vals[self.event_field()] = event
-            elif re.match('\d\d?/\d\d?/\d\d\d?\d?', txt):
-                date_field = \
-                    template[template['Variable / Field Name'].str.contains('date')]['Variable / Field Name'].values[0]
-                redcap_vals[date_field] = txt
-
-        if self.id_field() not in redcap_vals:
-            raise ValueError(
-                f'Could not parse ID\n' +
-                f'{[i.txt for i in info_els]}'
-            )
-        if self.event_field() not in redcap_vals:
-            raise ValueError(
-                f'Could not parse event\n' +
-                f'{[i.txt for i in info_els]}'
-            )
-        if date_field is None:
-            raise ValueError(
-                f'Could not parse date\n' +
-                f'{[i.txt for i in info_els]}'
-            )
-
-        # parse diagnosis data
-        df = pd.DataFrame([[item.pg, item.x0, item.y1, item.txt] for item in diag_els],
-                          columns=['pg', 'x0', 'y1', 'txt'])
-
-        # get indices of element type's x0 in diag_xs
-        def get_idx(df, diag_xs):
-            xs = []
-            xs.append('time_x')
-            if df['txt'].str.contains('No diagnosis').any():
-                xs.append('no_diag_x')
-            if df['txt'].str.contains('No diagnosis').sum() < 2:
-                xs.append('dis_type_x')
-            if 'dis_type_x' in xs:
-                xs.append('diag_x')
-            if 'diag_x' in xs and \
-                    (~df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality')).any():
-                xs.append('symp_x')
-            if df['txt'].str.contains('Suicidality').any():
-                xs.append('suicid_symp_x')
-            if 'suicid_symp_x' in xs:
-                xs.append('desc_x')
-            if 'diag_x' in xs and \
-                    df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').sum() == 2:
-                xs.append('desc_x')
-            if 'desc_x' in xs:
-                xs.append('casa_x')
-            if 'diag_x' in xs and \
-                    df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').sum() == 2:
-                xs.append('casa_x')
-            if 'casa_x' in xs:
-                xs.append('comments_x')
-            if 'diag_x' in xs and \
-                    df[df['x0'] == diag_xs[xs.index('diag_x')]]['txt'].str.contains('Suicidality').sum() == 2:
-                xs.append('comments_x')
-
-            xs = pd.Series(
-                xs
-            )
-
-            return xs
-
-        xs = get_idx(df, diag_xs)
-
-        # print(df.sort_values(['x0', 'y1']))
-        # print(df)
-
-        # verify xs match length of diag_xs
-        if not len(xs) == len(diag_xs):
-            raise ValueError(
-                f"Expected lengh of xs to match length of diagnosis x0 found {subj, event}\n" +
-                f"xs: {xs}\n" +
-                f"diagnosis x0s: {diag_xs}"
-            )
-
-        suicid_fields = []
-        mapText = False
-        for i, row in df.iterrows():
-            txt = row['txt']
-            # get item type
-            for idx, item_type in xs.items():
-                if diag_xs[int(idx)] == row['x0']:
-                    break
-            # print(txt, item_type)
-            # get time
-            if item_type == 'time_x':
-                curr_time = txt[:-len(' Diagnosis')]
-            elif item_type == 'no_diag_x':
-                continue
-            elif item_type == 'dis_type_x':
-                continue
-            # items associated with columns
-            elif item_type == 'diag_x' or item_type == 'symp_x':
-                txt_processed = txt
-                # replace present (occurs after comma or code) with current
-                txt_processed = re.sub(r'[,–-] ?present', ', Current', txt_processed, flags=re.IGNORECASE)
-                txt_processed = re.sub(r'[)] present', '), Current', txt_processed, flags=re.IGNORECASE)
-                # replace newline with space
-                txt_processed = re.sub('\n', ' ', txt_processed)
-
-                # replace special characters
-                spec_char = {
-                    b'\xef\xac\x81': 'fi',
-                    "’".encode('utf-8'): "'"
-                }
-                for k in spec_char.keys():
-                    txt_processed = txt_processed.replace(k.decode('utf-8'), spec_char[k])
-
-                # if diagnosis
-                if item_type == 'diag_x':
-                    # skip if Suicidality
-                    if 'Suicidality' in txt_processed:
-                        continue
-
-                    # find time
-                    if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
-                        time = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
-                    else:
-                        time = curr_time
-                    ind = template['Section Header'].str.contains(r'\b' + time, case=False)
-
-                    # find remission
-                    remission = re.search(
-                        r"(full)|(partial) remission", txt_processed, re.IGNORECASE).group() if re.search(
-                        r"(full)|(partial) remission", txt_processed, re.IGNORECASE) else ''
-                    if remission:
-                        ind &= template['Field Label'].str.contains(remission, case=False)
-                    else:
-                        ind &= ~template['Field Label'].str.contains('remission', case=False)
-
-                    # remove time & remission from txt_processed
-                    pat = r'(–?' + time + ')|(' + remission + ')'
-                    txt_processed = re.sub(pat, '', txt_processed)
-
-                    # split by , ( or ) except in parentheses
-                    tokens = []
-                    splits = re.split(r',|\(|\)\s*(?![^()]*\))', txt_processed)
-                    for j, el in enumerate(splits):
-                        if j == 0:
-                            tokens.append(el.strip())
-                        else:
-                            tokens.extend(el.split())
-
-                    # special case 1: AD/H other vs AD/H
-                    if 'Attention-Deficit/Hyperactivity Disorder' in txt_processed:
-                        if 'Other' in txt_processed:
-                            ind &= template['Field Label'].str.contains('Other', case=False, regex=False)
-                        else:
-                            ind &= ~template['Field Label'].str.contains('Other', case=False, regex=False)
-                    # special case 2: map to text instead of mapping to 1
-                    if re.search('sleep problems', txt_processed, re.IGNORECASE) or re.search('insomnia', txt_processed, re.IGNORECASE):
-                        mapText = True
-
-                    # match tokens
-                    for token in tokens:
-                        ind &= template['Field Label'].str.contains(token, case=False, regex=False)
-                        if ind.sum() == 1:
-                            break
-
-                # if symptom
-                elif item_type == 'symp_x':
-                    # split by , if symptoms
-                    tokens = txt_processed.split(',')
-                    # extract symptom, time
-                    symp = tokens[0]
-                    time_matches = re.findall(r"(\bCurrent)|(\bPast)", re.sub(r' \([^)]*\)', '', txt_processed), flags=re.IGNORECASE)
-                    # verify at most 1 time value
-                    if len(time_matches) > 1:
-                        sub = re.sub(r' \([^)]*\)', '', txt)
-                        raise ValueError(
-                            f"Expected at most 1 value of time from symptom\n" +
-                            f"{time_matches}\n{txt_processed}\n{sub}"
-                        )
-                    # if 1 found, use that as time
-                    elif len(time_matches) == 1:
-                        time = time_matches[0][0] if time_matches[0][0] else time_matches[0][1]
-                    # if 0 found use time from time_x
-                    else:
-                        time = curr_time.strip()
-
-                    # find field label with symptom & time
-                    ind = template['Field Label'].str.contains(symp, case=False, regex=False)
-                    ind &= template['Section Header'].str.contains(r'\b' + time)
-
-                    # special case 1: stealing
-                    if re.search('stealing', symp, re.IGNORECASE):
-                        if 'confronting' in symp:
-                            ind &= template['Field Label'].str.contains('confronting', case=False, regex=False)
-                        else:
-                            ind &= ~template['Field Label'].str.contains('confronting', case=False, regex=False)
-                    # special case 2: irritability vs explosive irritability vs manic irritability
-                    elif re.search('irritability', symp, re.IGNORECASE):
-                        if 'Explosive' in txt_processed:
-                            ind &= template['Field Label'].str.contains('Explosive', case=False, regex=False)
-                        elif 'Manic' in txt_processed:
-                            ind &= template['Field Label'].str.contains('Manic', case=False, regex=False)
-                        else:
-                            ind &= ~template['Field Label'].str.contains('Explosive', case=False, regex=False)
-                            ind &= ~template['Field Label'].str.contains('Manic', case=False, regex=False)
-                    # special case 3: suicidal ideation is a symptom for any diagnosis
-                    elif re.search('suicidal ideation', symp, re.IGNORECASE):
-                        continue
-                else:
-                    pass
-
-                # if multiple possible matches
-                if ind.sum() > 1:
-                    raise ValueError(
-                        "Field should have at most 1 match\n" +
-                        f"{txt}\n{txt_processed}\n" +
-                        f"{tokens}\n" +
-                        ', '.join(template.loc[ind]['Field Label'].values)
-                    )
-                # raise if no matches unless special case
-                elif ind.sum() == 0:
-                    # special case: phobia
-                    if re.search('phobi', txt_processed, re.IGNORECASE):
-                        continue
-                    # special case: mapping text
-                    elif mapText:
-                        mapText = False
-                        continue
-                    else:
-                        raise ValueError(
-                            "Field should have at least 1 match\n" +
-                            f"{txt}\n{txt_processed}\n" +
-                            f"{tokens}"
-                        )
-
-                # add to df for mapping (value = 1)
-                col = template.loc[ind]['Variable / Field Name'].values[0]
-                if col in redcap_vals:
-                    raise ValueError(
-                        f"Field Name already exists: {col}"
-                    )
-                # special cases (do not map to 1 but text of next item)
-                if mapText:
-                    redcap_vals[col] = df.loc[i+1]['txt']
-                # otherwise just map to 1
-                else:
-                    redcap_vals[col] = 1
-            elif item_type == 'suicid_symp_x':
-                # just header
-                if txt == 'Symptom':
-                    continue
-
-                # replace : with -
-                txt = txt.replace(':', ' -').replace('\n', ' ').replace(',', '')
-                # get time
-                if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group():
-                    time = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
-                else:
-                    time = curr_time
-                # match txt with field
-                ind = template['Field Label'].str.contains(txt, case=False, regex=False)
-                ind &= template['Field Label'].str.contains(time, case=False, regex=False)
-
-                # only 1 match
-                if ind.sum() != 1:
-                    raise ValueError(
-                        "Field should exactly 1 match\n" +
-                        f"{txt}\n" +
-                        ', '.join(template.loc[ind]['Field Label'].values)
-                    )
-
-                # store suicide field for completion at next iterations
-                suicid_field = template.loc[ind]['Variable / Field Name'].values[0]
-                redcap_vals[suicid_field] = []
-                suicid_fields.append(suicid_field)
-            elif item_type == 'desc_x':
-                # just header
-                if txt == 'Description':
-                    continue
-
-                # get description
-                redcap_vals[suicid_field].append("Description: " + txt.replace('\n', ' '))
-            elif item_type == 'casa_x':
-                # just header
-                if re.search(r'C-\s?CASA\s?Code', txt):
-                    continue
-
-                # get casa code
-                redcap_vals[suicid_field].append('C-CASA Code: ' + txt.replace('\n', ' '))
-            elif item_type == 'comments_x':
-                # just header
-                if re.search(r'Patient\sComments', txt):
-                    continue
-
-                # get patient comments
-                redcap_vals[suicid_field].append('Patient Comments: ' + txt.replace('\n', ' '))
-            else:
-                raise ValueError(
-                    f"Invalid item_type: {item_type}"
-                )
-        # turn suicidality fields from list to single string
-        for suicid_field in suicid_fields:
-            redcap_vals[suicid_field] = ' | '.join(redcap_vals[suicid_field])
-
-        # print(redcap_vals)
-        return redcap_vals
 
     @staticmethod
     def parse_info_elements(doc):
@@ -492,6 +155,401 @@ class KsadsUploader(RedcapUploader):
             items.append(item)
         return sorted(items, key=lambda k: (k.pg, -1 * k.y1, k.x0))
 
+    def parse_data(self, diag_els, info_els, template):
+        """
+        diag_items: list of Items containing diagnosis data
+        info_items: list of Items containing user information data
+        template: CSV that contains REDCap variable name and field label
+
+        Maps extracted data from PDF to corresponding REDCap variable
+
+        Returns: dict that maps REDCap variable name to corresponding value extracted from PDF
+        """
+        redcap_vals = {}
+
+        # get all xs
+        diag_xs = sorted(set(x.x0 for x in diag_els))
+        info_xs = sorted(set(x.x0 for x in info_els))
+
+        # verify formatting
+        if len(info_xs) != 5:
+            raise ValueError(
+                f"Expected 5 x0 values for info elements, got {len(info_xs)}"
+            )
+        if len(info_els) != 11:
+            raise ValueError(
+                f"Expected 11 elements for info elements, got {len(info_els)}"
+            )
+
+        # parse information data (id, event, date)
+        subj, event, date_field = None, None, None
+        for info_el in info_els:
+            txt = info_el.txt
+            if re.match('\d+_\d', txt):
+                subj, event = txt.split('_')
+                event = 'year_' + event + '_arm_1'
+                redcap_vals[self.id_field()] = subj
+                redcap_vals[self.event_field()] = event
+            elif re.match('\d\d?/\d\d?/\d\d\d?\d?', txt):
+                date_field = \
+                    template[template['Variable / Field Name'].str.contains('date')]['Variable / Field Name'].values[0]
+                redcap_vals[date_field] = txt
+
+        if self.id_field() not in redcap_vals:
+            raise ValueError(
+                f'Could not parse ID\n' +
+                f'{[i.txt for i in info_els]}'
+            )
+        if self.event_field() not in redcap_vals:
+            raise ValueError(
+                f'Could not parse event\n' +
+                f'{[i.txt for i in info_els]}'
+            )
+        if date_field is None:
+            raise ValueError(
+                f'Could not parse date\n' +
+                f'{[i.txt for i in info_els]}'
+            )
+
+        # parse diagnosis data
+        df = pd.DataFrame([[item.pg, item.x0, item.y1, item.txt] for item in diag_els],
+                          columns=['pg', 'x0', 'y1', 'txt'])
+
+        # get indices of element type's x0 in diag_xs
+        def get_idx(df_arg, diag_xs_arg):
+            xs_arr = ['time_x']
+            if df_arg['txt'].str.contains('No diagnosis').any():
+                xs_arr.append('no_diag_x')
+            if df_arg['txt'].str.contains('No diagnosis').sum() < 2:
+                xs_arr.append('dis_type_x')
+            if 'dis_type_x' in xs_arr:
+                xs_arr.append('diag_x')
+            if 'diag_x' in xs_arr and \
+                    (
+                        ~df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains('Suicidality')
+                    ).any():
+                xs_arr.append('symp_x')
+            if df_arg['txt'].str.contains('Suicidality').any():
+                xs_arr.append('suicid_symp_x')
+            if 'suicid_symp_x' in xs_arr:
+                xs_arr.append('desc_x')
+            if 'diag_x' in xs_arr and \
+                    df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains(
+                        'Suicidality'
+                    ).sum() == 2:
+                xs_arr.append('desc_x')
+            if 'desc_x' in xs_arr:
+                xs_arr.append('casa_x')
+            if 'diag_x' in xs_arr and \
+                    df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains(
+                        'Suicidality'
+                    ).sum() == 2:
+                xs_arr.append('casa_x')
+            if 'casa_x' in xs_arr:
+                xs_arr.append('comments_x')
+            if 'diag_x' in xs_arr and \
+                    df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains(
+                        'Suicidality'
+                    ).sum() == 2:
+                xs_arr.append('comments_x')
+
+            xs_arr = pd.Series(
+                xs_arr
+            )
+
+            return xs_arr
+
+        xs = get_idx(df, diag_xs)
+
+        # print(df.sort_values(['x0', 'y1']))
+        # print(df)
+
+        # verify xs match length of diag_xs
+        if not len(xs) == len(diag_xs):
+            raise ValueError(
+                f"Expected lengh of xs to match length of diagnosis x0 found {subj, event}\n" +
+                f"xs: {xs}\n" +
+                f"diagnosis x0s: {diag_xs}"
+            )
+
+        def parse_time_x(txt_arg):
+            time_str = txt_arg[:-len(' Diagnosis')]
+            return time_str
+
+        def process_txt(txt_arg):
+            txt_processed = txt_arg
+            # replace present (occurs after comma or code) with current
+            txt_processed = re.sub(r'[,–-] ?present', ', Current', txt_processed, flags=re.IGNORECASE)
+            txt_processed = re.sub(r'[)] present', '), Current', txt_processed, flags=re.IGNORECASE)
+            # replace newline with space
+            txt_processed = re.sub('\n', ' ', txt_processed)
+            # replace special characters
+            spec_char = {
+                b'\xef\xac\x81': 'fi',
+                "’".encode('utf-8'): "'"
+            }
+            for k in spec_char.keys():
+                txt_processed = txt_processed.replace(k.decode('utf-8'), spec_char[k])
+            return txt_processed
+
+        def verify_match(ind_arg, template_arg, tokens_arg, txt_arg, txt_processed_arg):
+            # if multiple possible matches
+            if ind_arg.sum() > 1:
+                raise ValueError(
+                    "Field should have at most 1 match\n" +
+                    f"{txt_arg}\n{txt_processed_arg}\n" +
+                    f"{tokens_arg}\n" +
+                    ', '.join(template_arg.loc[ind_arg]['Field Label'].values)
+                )
+            # raise if no matches unless special case
+            elif ind_arg.sum() == 0:
+                raise ValueError(
+                    "Field should have at least 1 match\n" +
+                    f"{txt_arg}\n{txt_processed_arg}\n" +
+                    f"{tokens_arg}"
+                )
+
+        def map_col(ind_arg, template_arg, redcap_vals_arg, maptext_arg, txt_arg):
+            # add to df for mapping
+            col = template_arg.loc[ind_arg]['Variable / Field Name'].values[0]
+            if col in redcap_vals_arg:
+                raise ValueError(
+                    f"Field Name already exists: {col}"
+                )
+            # map to text
+            if maptext_arg:
+                redcap_vals_arg[col] = txt_arg
+            # map to 1
+            else:
+                redcap_vals_arg[col] = 1
+            return redcap_vals_arg
+
+        def parse_diag_x(txt_arg, curr_vars_arg, redcap_vals_arg, template_arg):
+            # preprocess txt
+            txt_processed = process_txt(txt_arg)
+
+            # skip if Suicidality
+            if 'Suicidality' in txt_processed:
+                return redcap_vals_arg
+
+            # find time & match
+            if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
+                time_str = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
+            else:
+                time_str = curr_vars_arg['time']
+            ind_arr = template_arg['Section Header'].str.contains(r'\b' + time_str, case=False)
+
+            # find remission & match
+            remission = re.search(
+                r"(full)|(partial) remission", txt_processed, re.IGNORECASE).group() if re.search(
+                r"(full)|(partial) remission", txt_processed, re.IGNORECASE) else ''
+            if remission:
+                ind_arr &= template_arg['Field Label'].str.contains(remission, case=False)
+            else:
+                ind_arr &= ~template_arg['Field Label'].str.contains('remission', case=False)
+
+            # remove time & remission from txt_processed
+            pat = r'(–?' + time_str + ')|(' + remission + ')'
+            txt_processed = re.sub(pat, '', txt_processed)
+
+            # split by , ( or ) except in parentheses
+            # get tokens
+            tokens_arr = []
+            splits = re.split(r',|\(|\)\s*(?![^()]*\))', txt_processed)
+            for j, el in enumerate(splits):
+                if j == 0:
+                    tokens_arr.append(el.strip())
+                else:
+                    tokens_arr.extend(el.split())
+
+            # special case 1: AD/H other vs AD/H
+            if 'Attention-Deficit/Hyperactivity Disorder' in txt_processed:
+                if 'Other' in txt_processed:
+                    ind_arr &= template_arg['Field Label'].str.contains('Other', case=False, regex=False)
+                else:
+                    ind_arr &= ~template_arg['Field Label'].str.contains('Other', case=False, regex=False)
+            # special case 2: if sleep problems => just continue;
+            # map based on symptom "patient reported trouble falling asleep"
+            # 'insomnia' variable not used?
+            elif re.search('sleep problems', txt_processed, re.IGNORECASE) or \
+                    re.search('insomnia', txt_processed, re.IGNORECASE):
+                return redcap_vals_arg
+
+            # match tokens
+            for token in tokens_arr:
+                ind_arr &= template_arg['Field Label'].str.contains(token, case=False, regex=False)
+                if ind_arr.sum() == 1:
+                    break
+
+            # verify match
+            verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens_arr, txt_arg=txt_arg,
+                         txt_processed_arg=txt_processed)
+
+            # map
+            redcap_vals_arg = map_col(ind_arr, template_arg, redcap_vals_arg, maptext_arg=False, txt_arg=txt_processed)
+            return redcap_vals_arg
+
+        def parse_symp_x(txt_arg, curr_vars_arg, redcap_vals_arg, template_arg):
+            mapText = False
+            # preprocess txt
+            txt_processed = process_txt(txt_arg)
+
+            # split by , if symptoms
+            tokens = txt_processed.split(',')
+
+            # extract symptom, time
+            symp = tokens[0]
+            time_matches = re.findall(r"(\bCurrent)|(\bPast)", re.sub(r' \([^)]*\)', '', txt_processed),
+                                      flags=re.IGNORECASE)
+
+            # verify at most 1 time value
+            if len(time_matches) > 1:
+                sub = re.sub(r' \([^)]*\)', '', txt_arg)
+                raise ValueError(
+                    f"Expected at most 1 value of time from symptom\n" +
+                    f"{time_matches}\n{txt_processed}\n{sub}"
+                )
+            # if 1 found, use that as time
+            elif len(time_matches) == 1:
+                time_str = time_matches[0][0] if time_matches[0][0] else time_matches[0][1]
+            # if 0 found use time from time_x
+            else:
+                time_str = curr_vars_arg['time'].strip()
+
+            # find field label with symptom & time
+            ind_arr = template_arg['Field Label'].str.contains(symp, case=False, regex=False)
+            ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
+
+            # special case 1: stealing
+            if re.search('stealing', symp, re.IGNORECASE):
+                if 'confronting' in symp:
+                    ind_arr &= template_arg['Field Label'].str.contains('confronting', case=False, regex=False)
+                else:
+                    ind_arr &= ~template_arg['Field Label'].str.contains('confronting', case=False, regex=False)
+            # special case 2: irritability vs explosive irritability vs manic irritability
+            elif re.search('irritability', symp, re.IGNORECASE):
+                if 'Explosive' in txt_processed:
+                    ind_arr &= template_arg['Field Label'].str.contains('Explosive', case=False, regex=False)
+                elif 'Manic' in txt_processed:
+                    ind_arr &= template_arg['Field Label'].str.contains('Manic', case=False, regex=False)
+                else:
+                    ind_arr &= ~template_arg['Field Label'].str.contains('Explosive', case=False, regex=False)
+                    ind_arr &= ~template_arg['Field Label'].str.contains('Manic', case=False, regex=False)
+            # special case 3: suicidal ideation is a symptom for any diagnosis
+            elif re.search('suicidal ideation', symp, re.IGNORECASE):
+                return redcap_vals_arg
+            # special case 4: sleep problem => map to text
+            elif re.search('Patient reported trouble falling asleep or staying asleep', symp, re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains('sleep problems', case=False, regex=False)
+                # use time from time_x since contains "past"
+                ind_arr &= template_arg['Section Header'].str.contains(r'\b' + curr_vars_arg['time'])
+                mapText = True
+
+            # verify match
+            verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
+                         txt_processed_arg=txt_processed)
+
+            redcap_vals_arg = map_col(ind_arr, template_arg, redcap_vals_arg, maptext_arg=mapText, txt_arg=txt_arg)
+            return redcap_vals_arg
+
+        def parse_suicide_symp_x(txt_arg, curr_vars_arg, redcap_vals_arg, template_arg, suicide_fields_arg):
+            # just header
+            if txt_arg == 'Symptom':
+                return curr_vars_arg, redcap_vals_arg, suicide_fields_arg
+
+            # replace : with -
+            txt_processed = txt_arg.replace(':', ' -').replace('\n', ' ').replace(',', '')
+
+            # get time
+            if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
+                time = re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE).group()
+            else:
+                time = curr_vars_arg['time']
+
+            # match txt with field
+            ind_arr = template_arg['Field Label'].str.contains(txt_processed, case=False, regex=False)
+            ind_arr &= template_arg['Field Label'].str.contains(time, case=False, regex=False)
+
+            # verify match
+            verify_match(ind_arr, template_arg, tokens_arg=None, txt_arg=txt_arg, txt_processed_arg=txt_processed)
+
+            # store suicide field for completion at next iterations
+            suicide_field = template_arg.loc[ind_arr]['Variable / Field Name'].values[0]
+            curr_vars_arg['suicide_field'] = suicide_field
+            redcap_vals_arg[suicide_field] = []
+            suicide_fields_arg.append(suicide_field)
+
+            return curr_vars_arg, redcap_vals_arg, suicide_fields_arg
+
+        def parse_suicide_desc_x(txt_arg, curr_vars_arg, redcap_vals_arg):
+            # just header
+            if txt_arg == 'Description':
+                return redcap_vals_arg
+            # get description
+            suicide_field = curr_vars_arg['suicide_field']
+            redcap_vals_arg[suicide_field].append("Description: " + txt_arg.replace('\n', ' '))
+            return redcap_vals_arg
+
+        def parse_suicide_casa_x(txt_arg, curr_vars_arg, redcap_vals_arg):
+            # just header
+            if re.search(r'C-\s?CASA\s?Code', txt_arg):
+                return redcap_vals_arg
+
+            # get casa code
+            suicide_field = curr_vars_arg['suicide_field']
+            redcap_vals_arg[suicide_field].append('C-CASA Code: ' + txt_arg.replace('\n', ' '))
+            return redcap_vals_arg
+
+        def parse_suicide_comments_x(txt_arg, curr_vars_arg, redcap_vals_arg):
+            # just header
+            if re.search(r'Patient\sComments', txt_arg):
+                return redcap_vals_arg
+
+            # get patient comments
+            suicide_field = curr_vars_arg['suicide_field']
+            redcap_vals_arg[suicide_field].append('Patient Comments: ' + txt_arg.replace('\n', ' '))
+            return redcap_vals_arg
+
+        suicide_fields = []
+        curr_vars = {}
+        for i, row in df.iterrows():
+            txt = row['txt']
+            # get item type
+            for idx, item_type in xs.items():
+                if diag_xs[int(idx)] == row['x0']:
+                    break
+            print(txt, item_type)
+            # get time
+            if item_type == 'time_x':
+                curr_vars['time'] = parse_time_x(txt)
+            elif item_type == 'no_diag_x':
+                continue
+            elif item_type == 'dis_type_x':
+                continue
+            elif item_type == 'diag_x':
+                redcap_vals = parse_diag_x(txt, curr_vars, redcap_vals, template)
+            elif item_type == 'symp_x':
+                redcap_vals = parse_symp_x(txt, curr_vars, redcap_vals, template)
+            elif item_type == 'suicid_symp_x':
+                curr_vars, redcap_vals, suicide_fields = parse_suicide_symp_x(txt, curr_vars, redcap_vals, template, suicide_fields)
+            elif item_type == 'desc_x':
+                redcap_vals = parse_suicide_desc_x(txt, curr_vars, redcap_vals)
+            elif item_type == 'casa_x':
+                redcap_vals = parse_suicide_casa_x(txt, curr_vars, redcap_vals)
+            elif item_type == 'comments_x':
+                redcap_vals = parse_suicide_comments_x(txt, curr_vars, redcap_vals)
+            else:
+                raise ValueError(
+                    f"Invalid item_type: {item_type}"
+                )
+            print(curr_vars)
+        # turn suicidality fields from list to single string
+        for suicide_field in suicide_fields:
+            redcap_vals[suicide_field] = ' | '.join(redcap_vals[suicide_field])
+
+        # print(redcap_vals)
+        return redcap_vals
+
     def pull(self):
         errors = []
         pulled_data = []
@@ -517,7 +575,7 @@ class KsadsUploader(RedcapUploader):
                 )
                 redcap_vals = None
                 # raise err
-            except UnboundLocalError as err:
+            except KeyError as err:
                 errors.append(
                     KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
                 )
@@ -531,6 +589,7 @@ class KsadsUploader(RedcapUploader):
                     if element.txt in ['Parent', 'Youth', 'Teen']:
                         return True
                     return False
+
                 try:
                     # get source
                     filtered = list(filter(get_source_element, info_els))
