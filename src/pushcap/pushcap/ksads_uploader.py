@@ -441,7 +441,6 @@ class KsadsUploader(RedcapUploader):
                     '^suicidal ideation: ' + time_str + '$',
                     case=False
                 )
-                print(template_arg.loc[ind_arr])
             # special case 4: sleep problem => map to text
             elif re.search('Patient reported trouble falling asleep or staying asleep', symp, re.IGNORECASE):
                 ind_arr = template_arg['Field Label'].str.contains('sleep problems', case=False, regex=False)
@@ -522,7 +521,7 @@ class KsadsUploader(RedcapUploader):
             for idx, item_type in xs.items():
                 if diag_xs[int(idx)] == row['x0']:
                     break
-            print(txt, item_type)
+            # print(txt, item_type)
             # get time
             if item_type == 'time_x':
                 curr_vars['time'] = parse_time_x(txt)
