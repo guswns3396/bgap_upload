@@ -313,12 +313,12 @@ class KsadsUploader(RedcapUploader):
             # add to df for mapping
             col = template_arg.loc[ind_arg]['Variable / Field Name'].values[0]
             if col in redcap_vals_arg:
-                # special case 1: sleep problems may be duplicated
-                if redcap_vals_arg[col] == txt_arg:
+                # special case 1: duplicated symptom
+                if redcap_vals_arg[col] == txt_arg or redcap_vals_arg[col] == 1:
                     pass
                 else:
                     raise ValueError(
-                        f"Field Name already exists: {col}"
+                        f"Field Name already exists: {col}\n{redcap_vals_arg[col]}"
                     )
             # map to text
             if maptext_arg:
