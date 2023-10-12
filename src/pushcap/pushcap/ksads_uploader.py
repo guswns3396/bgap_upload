@@ -478,6 +478,7 @@ class KsadsUploader(RedcapUploader):
 
             # replace : with -
             txt_processed = txt_arg.replace(':', ' -').replace('\n', ' ').replace(',', '')
+            txt_processed = txt_processed.replace('Self- ', 'Self-')
 
             # get time
             if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
@@ -488,6 +489,13 @@ class KsadsUploader(RedcapUploader):
             # match txt with field
             ind_arr = template_arg['Field Label'].str.contains(txt_processed, case=False, regex=False)
             ind_arr &= template_arg['Field Label'].str.contains(time, case=False, regex=False)
+
+            # special case 1: "suicide attempt" matches multiple
+            if re.match('^suicide attempt$', txt_processed.strip(), re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.fullmatch(
+                    '^' + time + ' suicide attempt$',
+                    case=False
+                )
 
             # verify match
             verify_match(ind_arr, template_arg, tokens_arg=None, txt_arg=txt_arg, txt_processed_arg=txt_processed)
