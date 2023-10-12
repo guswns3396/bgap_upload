@@ -330,7 +330,10 @@ class KsadsUploader(RedcapUploader):
 
             # skip if Suicidality
             if 'Suicidality' in txt_processed:
-                return redcap_vals_arg
+                return redcap_vals_arg, curr_vars_arg
+
+            # store txt as diagnosis
+            curr_vars_arg['diag'] = txt_processed
 
             # find time & match
             if re.search(r"(\bCurrent)|(\bPast)", txt_processed, re.IGNORECASE):
@@ -373,10 +376,13 @@ class KsadsUploader(RedcapUploader):
             # 'insomnia' variable not used?
             elif re.search('sleep problems', txt_processed, re.IGNORECASE) or \
                     re.search('insomnia', txt_processed, re.IGNORECASE):
-                return redcap_vals_arg
+                return redcap_vals_arg, curr_vars_arg
             # special case 3: phobia not part of KSADS
             elif re.search('phobi', txt_processed, re.IGNORECASE):
-                return redcap_vals_arg
+                return redcap_vals_arg, curr_vars_arg
+            # special case 4: adjustment disorder not part of KSADS
+            elif re.search('adjustment disorder', txt_processed, re.IGNORECASE):
+                return redcap_vals_arg, curr_vars_arg
 
             # match tokens
             for token in tokens_arr:
@@ -390,7 +396,7 @@ class KsadsUploader(RedcapUploader):
 
             # map
             redcap_vals_arg = map_col(ind_arr, template_arg, redcap_vals_arg, maptext_arg=False, txt_arg=txt_processed)
-            return redcap_vals_arg
+            return redcap_vals_arg, curr_vars_arg
 
         def parse_symp_x(txt_arg, curr_vars_arg, redcap_vals_arg, template_arg):
             mapText = False
@@ -452,6 +458,10 @@ class KsadsUploader(RedcapUploader):
                 mapText = True
             # special case 5: phobia not part of KSADS
             elif re.search('phobi', symp, re.IGNORECASE):
+                return redcap_vals_arg
+            # special case 6: adjustment disorder not part of KSADS
+            # adjustment disorder symptom if diag == adjustment disorder and no symptoms matched
+            elif ind_arr.sum() == 0 and re.search('adjustment disorder', curr_vars_arg['diag'], re.IGNORECASE):
                 return redcap_vals_arg
 
             # verify match
@@ -536,7 +546,7 @@ class KsadsUploader(RedcapUploader):
             elif item_type == 'dis_type_x':
                 continue
             elif item_type == 'diag_x':
-                redcap_vals = parse_diag_x(txt, curr_vars, redcap_vals, template)
+                redcap_vals, curr_vars = parse_diag_x(txt, curr_vars, redcap_vals, template)
             elif item_type == 'symp_x':
                 redcap_vals = parse_symp_x(txt, curr_vars, redcap_vals, template)
             elif item_type == 'suicid_symp_x':
