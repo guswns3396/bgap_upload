@@ -313,9 +313,13 @@ class KsadsUploader(RedcapUploader):
             # add to df for mapping
             col = template_arg.loc[ind_arg]['Variable / Field Name'].values[0]
             if col in redcap_vals_arg:
-                raise ValueError(
-                    f"Field Name already exists: {col}"
-                )
+                # special case 1: sleep problems may be duplicated
+                if redcap_vals_arg[col] == txt_arg:
+                    pass
+                else:
+                    raise ValueError(
+                        f"Field Name already exists: {col}"
+                    )
             # map to text
             if maptext_arg:
                 redcap_vals_arg[col] = txt_arg
@@ -374,15 +378,18 @@ class KsadsUploader(RedcapUploader):
             # special case 2: if sleep problems => just continue;
             # map based on symptom "patient reported trouble falling asleep"
             # 'insomnia' variable not used?
-            elif re.search('sleep problems', txt_processed, re.IGNORECASE) or \
+            if re.search('sleep problems', txt_processed, re.IGNORECASE) or \
                     re.search('insomnia', txt_processed, re.IGNORECASE):
                 return redcap_vals_arg, curr_vars_arg
             # special case 3: phobia not part of KSADS
-            elif re.search('phobi', txt_processed, re.IGNORECASE):
+            if re.search('phobi', txt_processed, re.IGNORECASE):
                 return redcap_vals_arg, curr_vars_arg
             # special case 4: adjustment disorder not part of KSADS
-            elif re.search('adjustment disorder', txt_processed, re.IGNORECASE):
+            if re.search('adjustment disorder', txt_processed, re.IGNORECASE):
                 return redcap_vals_arg, curr_vars_arg
+            # special case 7: disruptive mood dysregulation has no time
+            if re.search('disruptive mood dysregulation', txt_processed, re.IGNORECASE):
+                ind_arr |= ~template_arg['Section Header'].str.contains(r'\b' + time_str, case=False)
 
             # match tokens
             for token in tokens_arr:
@@ -436,7 +443,7 @@ class KsadsUploader(RedcapUploader):
                 else:
                     ind_arr &= ~template_arg['Field Label'].str.contains('confronting', case=False, regex=False)
             # special case 2: irritability vs explosive irritability vs manic irritability
-            elif re.search('irritability', symp, re.IGNORECASE):
+            if re.search('irritability', symp, re.IGNORECASE):
                 if 'Explosive' in txt_processed:
                     ind_arr &= template_arg['Field Label'].str.contains('Explosive', case=False, regex=False)
                 elif 'Manic' in txt_processed:
@@ -445,24 +452,52 @@ class KsadsUploader(RedcapUploader):
                     ind_arr &= ~template_arg['Field Label'].str.contains('Explosive', case=False, regex=False)
                     ind_arr &= ~template_arg['Field Label'].str.contains('Manic', case=False, regex=False)
             # special case 3: suicidal ideation as symptom
-            elif re.match('^suicidal ideation$', symp, re.IGNORECASE):
+            if re.match('^suicidal ideation$', symp, re.IGNORECASE):
                 ind_arr = template_arg['Field Label'].str.fullmatch(
                     '^suicidal ideation: ' + time_str + '$',
                     case=False
                 )
             # special case 4: sleep problem => map to text
-            elif re.search('Patient reported trouble falling asleep or staying asleep', symp, re.IGNORECASE):
+            if re.search('Patient reported trouble falling asleep or staying asleep', symp, re.IGNORECASE):
                 ind_arr = template_arg['Field Label'].str.contains('sleep problems', case=False, regex=False)
                 # use time from time_x since contains "past"
                 ind_arr &= template_arg['Section Header'].str.contains(r'\b' + curr_vars_arg['time'])
                 mapText = True
             # special case 5: phobia not part of KSADS
-            elif re.search('phobi', symp, re.IGNORECASE):
+            if re.search('phobi', symp, re.IGNORECASE):
                 return redcap_vals_arg
             # special case 6: adjustment disorder not part of KSADS
             # adjustment disorder symptom if diag == adjustment disorder and no symptoms matched
-            elif ind_arr.sum() == 0 and re.search('adjustment disorder', curr_vars_arg['diag'], re.IGNORECASE):
+            if ind_arr.sum() == 0 and re.search('adjustment disorder', curr_vars_arg['diag'], re.IGNORECASE):
                 return redcap_vals_arg
+            # special case 7: disruptive mood dysregulation symptoms don't have time
+            if ind_arr.sum() == 0 and \
+                    re.search('disruptive mood dysregulation', curr_vars_arg['diag'], re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains(symp, case=False, regex=False)
+            # special case 8: 'Difficulty sustaining attention since elementary school'
+            # vs 'more than one school year'
+            if re.search('Difficulty sustaining', symp, re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains(
+                    'Difficulty sustaining',
+                    case=False, regex=False
+                )
+                ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
+            # special case 9: 'Easily distracted since elementary school'
+            # vs 'for more than one school year'
+            if re.search('easily distracted', symp, re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains(
+                    'easily distracted',
+                    case=False, regex=False
+                )
+                ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
+            # special case 10: 'Difficulty remaining seated since elementary school'
+            # vs 'for more than one school year'
+            if re.search('Difficulty remaining seated', symp, re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains(
+                    'Difficulty remaining seated',
+                    case=False, regex=False
+                )
+                ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
 
             # verify match
             verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
