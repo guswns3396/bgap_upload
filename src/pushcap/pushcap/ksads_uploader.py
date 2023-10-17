@@ -508,6 +508,12 @@ class KsadsUploader(RedcapUploader):
             # special case 12: hypersexuality
             if re.search('Hypersexuality', symp, re.IGNORECASE):
                 return redcap_vals_arg
+            # special case 13: distractibility vs increased distractibility
+            if re.search('distractibility', symp, re.IGNORECASE):
+                if 'Increased' in symp:
+                    ind_arr &= template_arg['Field Label'].str.contains('increased', case=False, regex=False)
+                else:
+                    ind_arr &= ~template_arg['Field Label'].str.contains('increased', case=False, regex=False)
 
             # verify match
             verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
