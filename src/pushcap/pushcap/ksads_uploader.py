@@ -505,6 +505,9 @@ class KsadsUploader(RedcapUploader):
                     case=False, regex=False
                 )
                 ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
+            # special case 12: hypersexuality
+            if re.search('Hypersexuality', symp, re.IGNORECASE):
+                return redcap_vals_arg
 
             # verify match
             verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
@@ -538,6 +541,11 @@ class KsadsUploader(RedcapUploader):
                     '^' + time + ' suicide attempt$',
                     case=False
                 )
+            # special case 2: preparatory actions toward imminent suicidal behavior
+            prep_act_str = 'preparatory actions toward imminent suicidal behavior'
+            if re.search(prep_act_str, txt_processed.strip(), re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains(prep_act_str, case=False, regex=False)
+                ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time, case=False)
 
             # verify match
             verify_match(ind_arr, template_arg, tokens_arg=None, txt_arg=txt_arg, txt_processed_arg=txt_processed)
