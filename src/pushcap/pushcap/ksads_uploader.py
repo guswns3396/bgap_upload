@@ -390,6 +390,10 @@ class KsadsUploader(RedcapUploader):
             # special case 7: disruptive mood dysregulation has no time
             if re.search('disruptive mood dysregulation', txt_processed, re.IGNORECASE):
                 ind_arr |= ~template_arg['Section Header'].str.contains(r'\b' + time_str, case=False)
+            # special case 8: bipolar I disorder has no remission
+            if re.search('bipolar I disorder', txt_processed, re.IGNORECASE):
+                ind_arr |= ~template_arg['Field Label'].str.contains(remission, case=False)
+
 
             # match tokens
             for token in tokens_arr:
