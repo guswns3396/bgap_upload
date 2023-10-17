@@ -498,6 +498,13 @@ class KsadsUploader(RedcapUploader):
                     case=False, regex=False
                 )
                 ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
+            # special case 11: elevated / euphoric mood => elevated mood
+            if re.search('Elevated', symp, re.IGNORECASE) and re.search('mood', symp, re.IGNORECASE):
+                ind_arr = template_arg['Field Label'].str.contains(
+                    'Elevated mood:',
+                    case=False, regex=False
+                )
+                ind_arr &= template_arg['Section Header'].str.contains(r'\b' + time_str)
 
             # verify match
             verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
@@ -624,8 +631,14 @@ class KsadsUploader(RedcapUploader):
             # pdf.tree.write('test.xml', pretty_print=True)
             doc = pdf.pq
             # parse pdf & sort elements
-            diag_els = self.sort_el_coord(self.parse_diag_elements(doc))
-            info_els = self.sort_el_coord(self.parse_info_elements(doc))
+            try:
+                diag_els = self.sort_el_coord(self.parse_diag_elements(doc))
+                info_els = self.sort_el_coord(self.parse_info_elements(doc))
+            except TypeError as err:
+                errors.append(
+                    KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
+                )
+                continue
 
             template = pd.read_csv(self._template_path)
             try:
