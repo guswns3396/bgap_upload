@@ -518,6 +518,9 @@ class KsadsUploader(RedcapUploader):
                     ind_arr &= template_arg['Field Label'].str.contains('increased', case=False, regex=False)
                 else:
                     ind_arr &= ~template_arg['Field Label'].str.contains('increased', case=False, regex=False)
+            # special case 14: NOTE: has no match
+            if symp.startswith('NOTE: '):
+                return redcap_vals_arg
 
             # verify match
             verify_match(ind_arg=ind_arr, template_arg=template_arg, tokens_arg=tokens, txt_arg=txt_arg,
