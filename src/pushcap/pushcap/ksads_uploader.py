@@ -216,42 +216,29 @@ class KsadsUploader(RedcapUploader):
                           columns=['pg', 'x0', 'y1', 'txt'])
 
         # get indices of element type's x0 in diag_xs
-        def get_idx(df_arg, diag_xs_arg):
-            xs_arr = ['time_x']
-            if df_arg['txt'].str.contains('No diagnosis').any():
-                xs_arr.append('no_diag_x')
-            if df_arg['txt'].str.contains('No diagnosis').sum() < 2:
-                xs_arr.append('dis_type_x')
-            if 'dis_type_x' in xs_arr:
-                xs_arr.append('diag_x')
-            if 'diag_x' in xs_arr and \
-                    (
-                        ~df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains('Suicidality')
-                    ).any():
-                xs_arr.append('symp_x')
-            if df_arg['txt'].str.contains('Suicidality').any():
-                xs_arr.append('suicid_symp_x')
-            if 'suicid_symp_x' in xs_arr:
-                xs_arr.append('desc_x')
-            if 'diag_x' in xs_arr and \
-                    df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains(
-                        'Suicidality'
-                    ).sum() == 2:
-                xs_arr.append('desc_x')
-            if 'desc_x' in xs_arr:
-                xs_arr.append('casa_x')
-            if 'diag_x' in xs_arr and \
-                    df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains(
-                        'Suicidality'
-                    ).sum() == 2:
-                xs_arr.append('casa_x')
-            if 'casa_x' in xs_arr:
-                xs_arr.append('comments_x')
-            if 'diag_x' in xs_arr and \
-                    df_arg[df_arg['x0'] == diag_xs_arg[xs_arr.index('diag_x')]]['txt'].str.contains(
-                        'Suicidality'
-                    ).sum() == 2:
-                xs_arr.append('comments_x')
+        def get_idx(df_x_uniq_arg, diag_xs_arg):
+            xs_arr = []
+
+            for _, s in df_x_uniq_arg['txt'].items():
+                if re.match(r"(Current)|(Past) Diagnosis", s):
+                    xs_arr.append('time_x')
+                elif re.match('No diagnosis', s):
+                    xs_arr.append('no_diag_x')
+                elif s.startswith('Symptom'):
+                    xs_arr.append('suicid_symp_x')
+                elif re.match('Description', s):
+                    xs_arr.append('desc_x')
+                elif re.match(r'(C-)?\s?CASA\s?Code', s):
+                    xs_arr.append('casa_x')
+                elif re.match(r'Patient\sComments', s):
+                    xs_arr.append('comments_x')
+                else:
+                    if 'dis_type_x' not in xs_arr:
+                        xs_arr.append('dis_type_x')
+                    elif 'diag_x' not in xs_arr:
+                        xs_arr.append('diag_x')
+                    else:
+                        xs_arr.append('symp_x')
 
             xs_arr = pd.Series(
                 xs_arr
@@ -259,10 +246,11 @@ class KsadsUploader(RedcapUploader):
 
             return xs_arr
 
-        xs = get_idx(df, diag_xs)
+        xs = get_idx(df[~df['x0'].duplicated()].sort_values('x0'), diag_xs)
 
         # print(df.sort_values(['x0', 'y1']))
-        # print(df)
+        # print(df[~df['x0'].duplicated()].sort_values('x0'))
+        # print(xs)
 
         # verify xs match length of diag_xs
         if not len(xs) == len(diag_xs):
@@ -675,6 +663,7 @@ class KsadsUploader(RedcapUploader):
                     KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
                 )
                 redcap_vals = None
+                # raise err
             else:
                 # verify subj, event matches, youth vs parent
                 pdf_subj, pdf_event = redcap_vals[self.id_field()], redcap_vals[self.event_field()]
