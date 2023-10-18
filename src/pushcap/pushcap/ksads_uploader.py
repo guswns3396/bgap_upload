@@ -56,6 +56,13 @@ class KsadsUploader(RedcapUploader):
             lambda i, this: PyQuery(this).text() == 'User Information'
         )
 
+        # if user information does not exist
+        # use patient ID anchor instead
+        if user_info_el.text() == '':
+            user_info_el = doc.find('LTTextBoxHorizontal').filter(
+                lambda i, this: PyQuery(this).text() == 'PATIENT ID'
+            )
+
         # filter to only get information  elements
         def filter_info_el(i, this, curr_diag_el=curr_diag_el, user_info_el=user_info_el):
             parents = PyQuery(this).parents()
@@ -120,14 +127,22 @@ class KsadsUploader(RedcapUploader):
             if pg == '0':
                 prop = float(x0) >= float(curr_diag_el.attr('x0'))
                 prop = prop and float(y1) <= float(curr_diag_el.attr('y1'))
-                prop = prop and float(y1) > float(link_el.attr('y1'))
+                # if link exists (old format)
+                if link_el.text() != '':
+                    prop = prop and float(y1) > float(link_el.attr('y1'))
             # if not first page => get btw cpc & link
             else:
                 prop = float(x0) >= float(curr_diag_el.attr('x0'))
-                prop = prop and float(y1) < float(cpc_el.attr('y1'))
-                prop = prop and float(y1) > float(link_el.attr('y1'))
+                # if cpc exists (old format)
+                if cpc_el.text() != '':
+                    prop = prop and float(y1) < float(cpc_el.attr('y1'))
+                # if link exists (old format)
+                if link_el.text() != '':
+                    prop = prop and float(y1) > float(link_el.attr('y1'))
             # exclude copyright
             prop = prop and not PyQuery(this).text().startswith("Copyright")
+            # exclude datetime
+            prop = prop and not re.search(r"\d\d?/\d\d?/\d\d\d\d", PyQuery(this).text())
             return prop
 
         diag_elements = doc.find('LTTextBoxHorizontal').filter(filter_diag_el)
@@ -171,15 +186,25 @@ class KsadsUploader(RedcapUploader):
         diag_xs = sorted(set(x.x0 for x in diag_els))
         info_xs = sorted(set(x.x0 for x in info_els))
 
-        # verify formatting
-        if len(info_xs) != 5:
-            raise ValueError(
-                f"Expected 5 x0 values for info elements, got {len(info_xs)}"
-            )
-        if len(info_els) != 11:
-            raise ValueError(
-                f"Expected 11 elements for info elements, got {len(info_els)}"
-            )
+        # verify formatting (can be 4 or 5 depending on format version)
+        if 'User Information' in [x.txt for x in info_els]:
+            if len(info_xs) != 5:
+                raise ValueError(
+                    f"Expected 5 x0 values for info elements, got {len(info_xs)}"
+                )
+            if len(info_els) != 11:
+                raise ValueError(
+                    f"Expected 11 elements for info elements, got {len(info_els)}"
+                )
+        else:
+            if len(info_xs) != 4:
+                raise ValueError(
+                    f"Expected 4 x0 values for info elements, got {len(info_xs)}"
+                )
+            if len(info_els) != 10:
+                raise ValueError(
+                    f"Expected 10 elements for info elements, got {len(info_els)}"
+                )
 
         # parse information data (id, event, date)
         subj, event, date_field = None, None, None
@@ -647,6 +672,7 @@ class KsadsUploader(RedcapUploader):
                 errors.append(
                     KsadsUploaderError(str(err), subj_id=subj, event=event, form_path=report.report_path)
                 )
+                # raise err
                 continue
 
             template = pd.read_csv(self._template_path)
