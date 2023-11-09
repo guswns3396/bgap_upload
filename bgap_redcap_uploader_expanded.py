@@ -13,7 +13,7 @@ from pushcap import (RedcapUploader, RedcapUploaderError,
                      DkefsUploader, DkefsReport, DkefsUploaderError,
                      QGlobalUploader, QGlobalReport, QGlobalUploaderError,
                      CptUploader, CptReport, CptUploaderError,
-                     KsadsUploader, KsadsUploaderError)
+                     KsadsUploader, KsadsReport, KsadsUploaderError)
 
 
 def bgap_crawl(data_path, report_handlers):
@@ -34,20 +34,20 @@ def bgap_crawl(data_path, report_handlers):
 
                 if subj_id != m.group('id'):
                     errors.append(RedcapUploaderError(
-                            f'Subj ID from directory ({subj_id}) does not '
-                            f'match file name ID ({m.group("id")}).',
-                            subj_id=subj_id, event=event,
-                            form_id=report_type,
-                            form_path=report_path))
+                        f'Subj ID from directory ({subj_id}) does not '
+                        f'match file name ID ({m.group("id")}).',
+                        subj_id=subj_id, event=event,
+                        form_id=report_type,
+                        form_path=report_path))
                     break
 
                 elif tp != m.group('tp'):
                     errors.append(RedcapUploaderError(
-                            f'Timepoint from directory ({tp}) does not '
-                            f'match file name timepoint ({m.group("tp")}).',
-                            subj_id=subj_id, event=event,
-                            form_id=report_type,
-                            form_path=report_path))
+                        f'Timepoint from directory ({tp}) does not '
+                        f'match file name timepoint ({m.group("tp")}).',
+                        subj_id=subj_id, event=event,
+                        form_id=report_type,
+                        form_path=report_path))
                     break
 
                 relative_path = Path(m.group(0)).relative_to(data_path)
@@ -68,7 +68,7 @@ def make_nihtb_uploader(matches, template_path, api_url, token, log_path):
         return None, []
     else:
         return NIHToolboxUploader(reports, template_path, api_url, token,
-                                  log_path, overwrite_ok=('nih_remote', )), []
+                                  log_path, overwrite_ok=('nih_remote',)), []
 
 
 def make_wisc_uploader0(matches, template_path, api_url, token, log_path):
@@ -83,30 +83,30 @@ def make_wisc_uploader0(matches, template_path, api_url, token, log_path):
         # More than 1 WISC form? Error
         if len(report_matches) != 1:
             errors += [QInteractiveUploaderError(
-                            f'Expecting 1 report, got {len(report_matches)}.',
-                            subj_id=subj_id, event=event, form_id='wisc',
-                            form_path=report_match.group(0))
-                       for report_match in report_matches]
+                f'Expecting 1 report, got {len(report_matches)}.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=report_match.group(0))
+                for report_match in report_matches]
             continue
-        
+
         scores_path = Path(report_matches[0].group(0))
 
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                fr'.*[/\\]{subj_id}_{tp}' +
-                r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
-                r'(?:NEW )?(?:Remote *)? *WISC(?:-V)?' +
-                r'(?: *\(Core[ _]10\))?(?: New)?_information.txt')
+            fr'.*[/\\]{subj_id}_{tp}' +
+            r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
+            r'(?:NEW )?(?:Remote *)? *WISC(?:-V)?' +
+            r'(?: *\(Core[ _]10\))?(?: New)?_information.txt')
         info_matches = [m for m in [info_file_re.fullmatch(str(f.resolve()))
                                     for f in scores_path.parent.iterdir()] if m]
 
         # More/less than 1 WISC info file? Error
         if len(info_matches) != 1:
             errors.append(QInteractiveUploaderError(
-                    f'Expecting 1 WISC info file, got {len(info_matches)}.',
-                    subj_id=subj_id, event=event, form_id='wisc',
-                    form_path=scores_path))
+                f'Expecting 1 WISC info file, got {len(info_matches)}.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=scores_path))
             continue
 
         info_path = Path(info_matches[0].group(0))
@@ -116,13 +116,13 @@ def make_wisc_uploader0(matches, template_path, api_url, token, log_path):
         path_date = datetime(int(info_matches[0].group('year')),
                              int(info_matches[0].group('month')),
                              int(info_matches[0].group('day'))
-                            ).strftime('%Y-%m-%d')
+                             ).strftime('%Y-%m-%d')
         info_date = subj_report.extract_info(date_mapping)['wisc_date']
         if info_date != path_date:
             errors.append(QInteractiveUploaderError(
-                    f'Assessment date in info file does not match path date.',
-                    subj_id=subj_id, event=event, form_id='wisc',
-                    form_path=scores_path))
+                f'Assessment date in info file does not match path date.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=scores_path))
             continue
 
         reports[(subj_id, event)] = subj_report
@@ -133,7 +133,6 @@ def make_wisc_uploader0(matches, template_path, api_url, token, log_path):
         wisc_upl = QInteractiveUploader(reports, template_path, api_url, token,
                                         log_path, info_mappings=date_mapping)
     return wisc_upl, errors
-
 
 
 def make_wisc_uploader1(matches, template_path, api_url, token, log_path):
@@ -148,30 +147,30 @@ def make_wisc_uploader1(matches, template_path, api_url, token, log_path):
         # More than 1 WISC form? Error
         if len(report_matches) != 1:
             errors += [QInteractiveUploaderError(
-                            f'Expecting 1 report, got {len(report_matches)}.',
-                            subj_id=subj_id, event=event, form_id='wisc',
-                            form_path=report_match.group(0))
-                       for report_match in report_matches]
+                f'Expecting 1 report, got {len(report_matches)}.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=report_match.group(0))
+                for report_match in report_matches]
             continue
-        
+
         scores_path = Path(report_matches[0].group(0))
 
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                fr'.*[/\\]{subj_id}_{tp}' +
-                r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
-                r'(?:NEW )?(?:Remote *)? *WISC(?:-V)?' +
-                r'(?: *\(Core[ _]10\))?(?: Part ?1)(?: New)?_information.txt')
+            fr'.*[/\\]{subj_id}_{tp}' +
+            r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
+            r'(?:NEW )?(?:Remote *)? *WISC(?:-V)?' +
+            r'(?: *\(Core[ _]10\))?(?: Part ?1)(?: New)?_information.txt')
         info_matches = [m for m in [info_file_re.fullmatch(str(f.resolve()))
                                     for f in scores_path.parent.iterdir()] if m]
 
         # More/less than 1 WISC info file? Error
         if len(info_matches) != 1:
             errors.append(QInteractiveUploaderError(
-                    f'Expecting 1 WISC info file (Part 1), got {len(info_matches)}.',
-                    subj_id=subj_id, event=event, form_id='wisc',
-                    form_path=scores_path))
+                f'Expecting 1 WISC info file (Part 1), got {len(info_matches)}.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=scores_path))
             continue
 
         info_path = Path(info_matches[0].group(0))
@@ -181,13 +180,13 @@ def make_wisc_uploader1(matches, template_path, api_url, token, log_path):
         path_date = datetime(int(info_matches[0].group('year')),
                              int(info_matches[0].group('month')),
                              int(info_matches[0].group('day'))
-                            ).strftime('%Y-%m-%d')
+                             ).strftime('%Y-%m-%d')
         info_date = subj_report.extract_info(date_mapping)['wisc_date']
         if info_date != path_date:
             errors.append(QInteractiveUploaderError(
-                    f'Assessment date in info file does not match path date.',
-                    subj_id=subj_id, event=event, form_id='wisc',
-                    form_path=scores_path))
+                f'Assessment date in info file does not match path date.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=scores_path))
             continue
 
         reports[(subj_id, event)] = subj_report
@@ -198,6 +197,7 @@ def make_wisc_uploader1(matches, template_path, api_url, token, log_path):
         wisc_upl = QInteractiveUploader(reports, template_path, api_url, token,
                                         log_path, info_mappings=date_mapping)
     return wisc_upl, errors
+
 
 def make_wisc_uploader2(matches, template_path, api_url, token, log_path):
     errors = []
@@ -211,30 +211,30 @@ def make_wisc_uploader2(matches, template_path, api_url, token, log_path):
         # More than 1 WISC form? Error
         if len(report_matches) != 1:
             errors += [QInteractiveUploaderError(
-                            f'Expecting 1 report, got {len(report_matches)}.',
-                            subj_id=subj_id, event=event, form_id='wisc',
-                            form_path=report_match.group(0))
-                       for report_match in report_matches]
+                f'Expecting 1 report, got {len(report_matches)}.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=report_match.group(0))
+                for report_match in report_matches]
             continue
-        
+
         scores_path = Path(report_matches[0].group(0))
 
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                fr'.*[/\\]{subj_id}_{tp}' +
-                r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
-                r'(?:NEW )?(?:Remote *)? *WISC(?:-V)?' +
-                r'(?: *\(Core[ _]10\))?(?: Part ?2)(?: New)?_information.txt')
+            fr'.*[/\\]{subj_id}_{tp}' +
+            r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})' +
+            r'(?:NEW )?(?:Remote *)? *WISC(?:-V)?' +
+            r'(?: *\(Core[ _]10\))?(?: Part ?2)(?: New)?_information.txt')
         info_matches = [m for m in [info_file_re.fullmatch(str(f.resolve()))
                                     for f in scores_path.parent.iterdir()] if m]
 
         # More/less than 1 WISC info file? Error
         if len(info_matches) != 1:
             errors.append(QInteractiveUploaderError(
-                    f'Expecting 1 WISC info file (Part 2), got {len(info_matches)}.',
-                    subj_id=subj_id, event=event, form_id='wisc',
-                    form_path=scores_path))
+                f'Expecting 1 WISC info file (Part 2), got {len(info_matches)}.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=scores_path))
             continue
 
         info_path = Path(info_matches[0].group(0))
@@ -244,13 +244,13 @@ def make_wisc_uploader2(matches, template_path, api_url, token, log_path):
         path_date = datetime(int(info_matches[0].group('year')),
                              int(info_matches[0].group('month')),
                              int(info_matches[0].group('day'))
-                            ).strftime('%Y-%m-%d')
+                             ).strftime('%Y-%m-%d')
         info_date = subj_report.extract_info(date_mapping)['wisc_date']
         if info_date != path_date:
             errors.append(QInteractiveUploaderError(
-                    f'Assessment date in info file does not match path date.',
-                    subj_id=subj_id, event=event, form_id='wisc',
-                    form_path=scores_path))
+                f'Assessment date in info file does not match path date.',
+                subj_id=subj_id, event=event, form_id='wisc',
+                form_path=scores_path))
             continue
 
         reports[(subj_id, event)] = subj_report
@@ -275,29 +275,29 @@ def make_ktea_uploader(matches, template_path, api_url, token, log_path):
         # More than 1 KTEA form? Error
         if len(report_matches) != 1:
             errors += [QInteractiveUploaderError(
-                            f'Expecting 1 report, got {len(report_matches)}.',
-                            subj_id=subj_id, event=event, form_id='ktea',
-                            form_path=report_match.group(0))
-                       for report_match in report_matches]
+                f'Expecting 1 report, got {len(report_matches)}.',
+                subj_id=subj_id, event=event, form_id='ktea',
+                form_path=report_match.group(0))
+                for report_match in report_matches]
             continue
-        
+
         scores_path = Path(report_matches[0].group(0))
 
         # Find info file
         tp = event.split('_')[1]
         info_file_re = re.compile(
-                fr'.*[/\\]{subj_id}_{tp}' +
-                r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})(?:Remote )?'
-                r'KTEA(?: \(BA-3\))?(?: Part\d)?_information.txt')
+            fr'.*[/\\]{subj_id}_{tp}' +
+            r'_(?P<month>\d\d?)_(?P<day>\d\d?)_(?P<year>\d{4})(?:Remote )?'
+            r'KTEA(?: \(BA-3\))?(?: Part\d)?_information.txt')
         info_matches = [m for m in [info_file_re.fullmatch(str(f.resolve()))
                                     for f in scores_path.parent.iterdir()] if m]
 
         # More/less than 1 KTEA info file? Error
         if len(info_matches) != 1:
             errors.append(QInteractiveUploaderError(
-                    f'Expecting 1 KTEA info file, got {len(info_matches)}.',
-                    subj_id=subj_id, event=event, form_id='ktea',
-                    form_path=scores_path))
+                f'Expecting 1 KTEA info file, got {len(info_matches)}.',
+                subj_id=subj_id, event=event, form_id='ktea',
+                form_path=scores_path))
             continue
 
         info_path = Path(info_matches[0].group(0))
@@ -307,13 +307,13 @@ def make_ktea_uploader(matches, template_path, api_url, token, log_path):
         path_date = datetime(int(info_matches[0].group('year')),
                              int(info_matches[0].group('month')),
                              int(info_matches[0].group('day'))
-                            ).strftime('%Y-%m-%d')
+                             ).strftime('%Y-%m-%d')
         info_date = subj_report.extract_info(date_mapping)['ktea_date']
         if info_date != path_date:
             errors.append(QInteractiveUploaderError(
-                    f'Assessment date in info file does not match path date.',
-                    subj_id=subj_id, event=event, form_id='ktea',
-                    form_path=scores_path))
+                f'Assessment date in info file does not match path date.',
+                subj_id=subj_id, event=event, form_id='ktea',
+                form_path=scores_path))
             continue
 
         reports[(subj_id, event)] = subj_report
@@ -338,15 +338,15 @@ def make_dkefs_uploader(matches, template_path, api_url, token, log_path):
             report_path = Path(report_match.group(0))
             if form_type not in dkefs_forms:
                 errors.append(DkefsUploaderError(
-                        f'Unknown form type {form_type}.', subj_id=subj_id,
-                        event=event, form_id=f'DKEFS', form_path=report_path))
+                    f'Unknown form type {form_type}.', subj_id=subj_id,
+                    event=event, form_id=f'DKEFS', form_path=report_path))
                 break
 
             if subj_report.has_form(form_type):
                 errors.append(DkefsUploaderError(
-                        f'More than one scoring file for form {form_type}.',
-                        subj_id=subj_id, event=event,
-                        form_id=f'DKEFS_{form_type}', form_path=report_path))
+                    f'More than one scoring file for form {form_type}.',
+                    subj_id=subj_id, event=event,
+                    form_id=f'DKEFS_{form_type}', form_path=report_path))
                 break
 
             score_values = report_path.read_text().strip().split(',')
@@ -376,8 +376,8 @@ def make_qglobal_uploader(matches, template_path, api_url, token, log_path):
     for (subj_id, event), report_matches in matches.items():
         if len(report_matches) > 1:
             errors.append(QGlobalUploaderError(
-                    'More than one scoring file.', subj_id=subj_id, event=event,
-                    form_id=f'qglobal'))
+                'More than one scoring file.', subj_id=subj_id, event=event,
+                form_id=f'qglobal'))
         report_path = Path(report_matches[0].group(0))
         reports[(subj_id, event)] = QGlobalReport(report_path)
 
@@ -397,8 +397,8 @@ def make_cpt3_uploader(matches, template_path, api_url, token, log_path):
     for (subj_id, event), report_matches in matches.items():
         if len(report_matches) > 1:
             errors.append(CptUploaderError(
-                    'More than one scoring file.', subj_id=subj_id, event=event,
-                    form_id=f'cpt3'))
+                'More than one scoring file.', subj_id=subj_id, event=event,
+                form_id=f'cpt3'))
         report_path = Path(report_matches[0].group(0))
         reports[(subj_id, event)] = CptReport(report_path)
 
@@ -406,7 +406,7 @@ def make_cpt3_uploader(matches, template_path, api_url, token, log_path):
         cpt_upl = None
     else:
         cpt_upl = CptUploader(reports, template_path, api_url, token, log_path,
-                             date_fields=('cpt3_date', ))
+                              date_fields=('cpt3_date',))
 
     return cpt_upl, errors
 
@@ -417,17 +417,17 @@ def make_ksads_uploader(matches, template_path, api_url, token, log_path):
 
     for (subj_id, event), report_matches in matches.items():
         if len(report_matches) > 1:
-            errors.append(CptUploaderError(
+            errors.append(KsadsUploaderError(
                 'More than one scoring file.', subj_id=subj_id, event=event,
                 form_id=f'ksads'))
         report_path = Path(report_matches[0].group(0))
-        reports[(subj_id, event)] = CptReport(report_path)
+        reports[(subj_id, event)] = KsadsReport(report_path)
 
     if not reports:
         ksads_upl = None
     else:
-        ksads_upl = KsadsUploader(report_path, template_path, parse_id_fn, api_url, token, log_path,
-                              date_fields=('ksads_date',))
+        ksads_upl = KsadsUploader(reports, template_path, api_url, token, log_path,
+                                  date_fields=('yksads_date', 'pksads_date'))
 
     return ksads_upl, errors
 
@@ -447,45 +447,52 @@ def bgap_upload(base_path, test=False):
     log_dir = redcap_path / 'logs'
 
     report_handlers = {
-            # 'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d).xls'),
-            #                 make_cpt3_uploader, 'bgap_cpt_template.xls'),
-            # 'DKEFS':       (re.compile(r'.*[/\\]DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d).txt'),
-            #                 make_dkefs_uploader, 'bgap_dkefs_template.csv'),
-            # 'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
-            #                            r'(?:_Remote)?.csv'),
-            #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
-            # 'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d).csv'),
-            #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
-            # 'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)_Part1.csv'),
-            #                 make_wisc_uploader1, 'bgap_wiscv_template.csv'),
-            # 'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)_Part2.csv'),
-            #                 make_wisc_uploader2, 'bgap_wiscv_template.csv'),
-            # 'KTEA':        (re.compile(r'.*[/\\]KTEA\(BA-3\)_Export_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
-            #                 make_ktea_uploader, 'bgap_ktea_template.csv'),
-            # 'Vineland':    (re.compile(r'.*[/\\]Vineland3_Report_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)\.docx?'),
-            #                 make_qglobal_uploader,
-            #                 'bgap_vineland_template.csv'),
-            # 'BASC3-PRS':   (re.compile(r'.*[/\\]BASC3PRS_Report_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)\.docx?'),
-            #                 make_qglobal_uploader,
-            #                 'bgap_basc3prs_template.csv'),
-            # 'BASC3-SRP':   (re.compile(r'.*[/\\]BASC3SRP_Report_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)\.docx?'),
-            #                 make_qglobal_uploader,
-            #                 'bgap_basc3srp_template.csv'),
-            # 'Y-KSADS': (re.compile(r'.*[/\\]Y_KSADS_Report_(?P<id>\d+)_'
-            #                            r'(?P<tp>\d)\.pdf'),
-            #                 make_ksads_uploader(),
-            #                 'bgap_basc3srp_template.csv'),
+        # 'CPT-3':       (re.compile(r'.*[/\\]CPT3_Export_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d).xls'),
+        #                 make_cpt3_uploader, 'bgap_cpt_template.xls'),
+        # 'DKEFS':       (re.compile(r'.*[/\\]DKEFS_(?P<form>\w+)_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d).txt'),
+        #                 make_dkefs_uploader, 'bgap_dkefs_template.csv'),
+        # 'NIH Toolbox': (re.compile(r'.*[/\\]NIHTB_Scores_(?P<id>\d+)_(?P<tp>\d)'
+        #                            r'(?:_Remote)?.csv'),
+        #                 make_nihtb_uploader, 'bgap_nihtb_template.csv'),
+        # 'WISC-V':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d).csv'),
+        #                 make_wisc_uploader0, 'bgap_wiscv_template.csv'),
+        # 'WISC-V-Part1':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d)_Part1.csv'),
+        #                 make_wisc_uploader1, 'bgap_wiscv_template.csv'),
+        # 'WISC-V-Part2':      (re.compile(r'.*[/\\]WISC[-_]V_Export_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d)_Part2.csv'),
+        #                 make_wisc_uploader2, 'bgap_wiscv_template.csv'),
+        # 'KTEA':        (re.compile(r'.*[/\\]KTEA\(BA-3\)_Export_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d)(?:_Remote|_Part\d)?.csv'),
+        #                 make_ktea_uploader, 'bgap_ktea_template.csv'),
+        # 'Vineland':    (re.compile(r'.*[/\\]Vineland3_Report_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d)\.docx?'),
+        #                 make_qglobal_uploader,
+        #                 'bgap_vineland_template.csv'),
+        # 'BASC3-PRS':   (re.compile(r'.*[/\\]BASC3PRS_Report_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d)\.docx?'),
+        #                 make_qglobal_uploader,
+        #                 'bgap_basc3prs_template.csv'),
+        # 'BASC3-SRP':   (re.compile(r'.*[/\\]BASC3SRP_Report_(?P<id>\d+)_'
+        #                            r'(?P<tp>\d)\.docx?'),
+        #                 make_qglobal_uploader,
+        #                 'bgap_basc3srp_template.csv'),
+        'Y-KSADS': (re.compile(r'.*[/\\]Y_KSADS_(?:Report_)?(?P<id>\d+)_'
+                               r'(?P<tp>\d)\.pdf'),
+                    make_ksads_uploader,
+                    'bgap_yksads_template.csv'),
+        'P-KSADS': (re.compile(r'.*[/\\]P_KSADS_(?:Report_)?(?P<id>\d+)_'
+                               r'(?P<tp>\d)\.pdf'),
+                    make_ksads_uploader,
+                    'bgap_pksads_template.csv'),
     }
 
+    # crawl over path for reports
+    # match file name regex of each report to file in directory
+    # make sure id and tp are consistent
     print(f'Crawling over {data_path} for reports...\n')
     report_matches, errors = bgap_crawl(data_path, report_handlers)
 
@@ -497,12 +504,14 @@ def bgap_upload(base_path, test=False):
         timestamp = time.strftime('%Y%m%d_%H%M%S')
         log_path = log_dir / f'{report_type}_push_log_{timestamp}.txt'
         uploader, path_errors = uploader_maker(
-                matches, template_path, api_url, token, log_path)
+            matches, template_path, api_url, token, log_path)
         errors += path_errors
 
         if uploader is None:
             continue
 
+        # push() => parse using pull() & push data to redcap
+        # pull() => return list of dictionaries of field-names -> score values
         print(f'Parsing and pushing scores for {report_type}...\n')
         subjs_events, response, push_errors = uploader.push()
         errors += push_errors
@@ -528,15 +537,19 @@ def main(arg):
     # upload from server to real DB
     elif arg == '--server':
         # bgap_upload(Path('/Volumes/Projects/KSTRT/Data')) # MacOS
-        bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=False) # WindowsOS
+        bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=False)  # WindowsOS
+    # upload from server to test DB
+    elif arg == '--tserver':
+        bgap_upload(base_path=Path(r"Z:\KSTRT\Data").resolve(), test=True)  # WindowsOS
     else:
-        raise ValueError("Flag must be '--test', '--real', or '--server'")
+        raise ValueError("Flag must be '--test', '--real', '--tserver', or '--server'")
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         raise ValueError('Requires 2 arguments (Python script, DB type)')
     main(sys.argv[-1])
+
 
 class BgapCrawlerError(Exception):
     pass
