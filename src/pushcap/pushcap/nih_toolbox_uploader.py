@@ -100,7 +100,7 @@ class NIHToolboxUploader(RedcapUploader):
         redcap_vals = {}
         overwrites = []
 
-        with open(csv_path) as csv_file:
+        with open(csv_path, encoding='utf-8-sig') as csv_file:
             for r in csv.DictReader(csv_file):
                 try:
                     instr = r['Inst']
